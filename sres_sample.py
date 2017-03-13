@@ -69,7 +69,8 @@ def sample():
         downsized_images[i] = (resized / 127.5) - 1.0
 
     print(downsized_images.min(), downsized_images.max())
-    
+
+
     # Get images
     real_images = tf.placeholder(
         tf.float32,
@@ -81,20 +82,20 @@ def sample():
   
     with tf.Session() as sess:
   
-      ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
+        ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
   
-      if ckpt and ckpt.model_checkpoint_path:
-        # Restores from checkpoint
-        saver.restore(sess, ckpt.model_checkpoint_path)
-        print('Checkpoint restored from {}'.format(ckpt.model_checkpoint_path))
-      else:
-        print('No checkpoint file found')
-        return
+        if ckpt and ckpt.model_checkpoint_path:
+            # Restores from checkpoint
+            saver.restore(sess, ckpt.model_checkpoint_path)
+            print('Checkpoint restored from {}'.format(ckpt.model_checkpoint_path))
+        else:
+            print('No checkpoint file found')
+            return
 
-      generated_images = sess.run(fake_images, feed_dict={real_images: downsized_images})
+        generated_images = sess.run(fake_images, feed_dict={real_images: downsized_images})
  
-      np.save(os.path.join(FLAGS.eval_dir, "input.npy"), downsized_images)
-      np.save(os.path.join(FLAGS.eval_dir, "samples.npy"), generated_images)
+        np.save(os.path.join(FLAGS.eval_dir, "input.npy"), downsized_images)
+        np.save(os.path.join(FLAGS.eval_dir, "samples.npy"), generated_images)
   
     return
 

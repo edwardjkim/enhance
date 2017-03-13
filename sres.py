@@ -56,19 +56,15 @@ def _variable_on_cpu(name, shape, initializer):
     return var
 
 
-def _variable_with_weight_decay(name, shape, stddev, wd):
-    """Helper to create an initialized Variable with weight decay.
-  
+def _variable_on_cpu_with_initializer(name, shape, stddev):
+    """
     Note that the Variable is initialized with a truncated normal distribution.
-    A weight decay is added only if one is specified.
   
     Parameters
     ----------
     name: name of the variable
     shape: list of ints
     stddev: standard deviation of a truncated Gaussian
-    wd: add L2Loss weight decay multiplied by this float. If None, weight
-        decay is not added for this Variable.
   
     Returns
     -------
@@ -79,9 +75,6 @@ def _variable_with_weight_decay(name, shape, stddev, wd):
         name,
         shape,
         tf.truncated_normal_initializer(stddev=stddev, dtype=dtype))
-    if wd is not None:
-        weight_decay = tf.multiply(tf.nn.l2_loss(var), wd, name='weight_loss')
-        tf.add_to_collection('losses', weight_decay)
     return var
 
 
@@ -99,8 +92,10 @@ def distorted_inputs():
     """
     if not FLAGS.data_dir:
         raise ValueError('Please supply a data_dir')
-    data_dir = os.path.join(FLAGS.data_dir, 'train.tfrecords')
-    images = sres_input.distorted_inputs(data_dir=data_dir, batch_size=FLAGS.batch_size)
+    filenames = [
+        os.path.join(FLAGS.data_dir, 'train.tfrecords')
+    ]
+    images = sres_input.distorted_inputs(filenames=filenames, batch_size=FLAGS.batch_size)
     if FLAGS.use_fp16:
         images = tf.cast(images, tf.float16)
     return images
@@ -136,9 +131,11 @@ def generator(input_image):
     with tf.variable_scope('gen'):
   
         with tf.variable_scope('deconv1'):
-            kernel = _variable_with_weight_decay(
-              'weights', shape=[1, 1, 64, 3], stddev=0.02, wd=None)
-            conv_t = tf.nn.conv2d_transpose(input_image, kernel, output_shape=[FLAGS.batch_size, 180, 320, 64], strides=[1, 1, 1, 1])
+            kernel = _variable_on_cpu_with_initializer(
+                'weights', shape=[1, 1, 64, 3], stddev=0.02)
+            conv_t = tf.nn.conv2d_transpose(
+                input_image, kernel,
+                output_shape=[FLAGS.batch_size, 180, 320, 64], strides=[1, 1, 1, 1])
             biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
             bias = tf.nn.bias_add(conv_t, biases)
             deconv1 = tf.maximum(bias, 0.2 * bias) # leaky relu
@@ -146,9 +143,11 @@ def generator(input_image):
         print("deconv1: ", deconv1.get_shape())
     
         with tf.variable_scope('deconv2'):
-            kernel = _variable_with_weight_decay(
-              'weights', shape=[5, 5, 64, 64], stddev=0.02, wd=None)
-            conv_t = tf.nn.conv2d_transpose(deconv1, kernel, output_shape=[FLAGS.batch_size, 180, 320, 64], strides=[1, 1, 1, 1])
+            kernel = _variable_on_cpu_with_initializer(
+                'weights', shape=[5, 5, 64, 64], stddev=0.02)
+            conv_t = tf.nn.conv2d_transpose(
+                deconv1, kernel,
+                output_shape=[FLAGS.batch_size, 180, 320, 64], strides=[1, 1, 1, 1])
             biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
             bias = tf.nn.bias_add(conv_t, biases)
             deconv2 = tf.maximum(bias, 0.2 * bias) # leaky relu
@@ -156,9 +155,11 @@ def generator(input_image):
         print("deconv2: ", deconv2.get_shape())
     
         with tf.variable_scope('deconv3'):
-            kernel = _variable_with_weight_decay(
-              'weights', shape=[5, 5, 3 * 4, 64], stddev=0.02, wd=None)
-            conv_t = tf.nn.conv2d_transpose(deconv2, kernel, output_shape=[FLAGS.batch_size, 180, 320, 3 * 4], strides=[1, 1, 1, 1])
+            kernel = _variable_on_cpu_with_initializer(
+                'weights', shape=[5, 5, 3 * 4, 64], stddev=0.02)
+            conv_t = tf.nn.conv2d_transpose(
+                deconv2, kernel,
+                output_shape=[FLAGS.batch_size, 180, 320, 3 * 4], strides=[1, 1, 1, 1])
             biases = _variable_on_cpu('biases', [3 * 4], tf.constant_initializer(0.0))
             deconv3 = tf.nn.bias_add(conv_t, biases)
 

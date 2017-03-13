@@ -63,16 +63,15 @@ def _generate_image_batch(image, min_queue_examples, batch_size, shuffle):
     return images
 
 
-def distorted_inputs(data_dir, batch_size):
+def distorted_inputs(filenames, batch_size):
     """
     """
-    filename = '/notebooks/shared/videos/youtube/tfrecords/train.tfrecords'
-  
-    if not tf.gfile.Exists(filename):
-        raise ValueError('Failed to find file: ' + filename)
+    for f in filenames:
+        if not tf.gfile.Exists(f):
+            raise ValueError('Failed to find file: ' + f)
   
     # Create a queue that produces the filenames to read.
-    filename_queue = tf.train.string_input_producer([filename])
+    filename_queue = tf.train.string_input_producer(filenames)
   
     # Read examples from files in the filename queue.
     read_input = read_frames(filename_queue)
@@ -85,21 +84,17 @@ def distorted_inputs(data_dir, batch_size):
     # Image processing for training the network. Note the many random
     # distortions applied to the image.
 
-    # Randomly crop a [height, width] section of the image.
-    #distorted_image = tf.random_crop(reshaped_image, [height, width, 3])
-  
     # Randomly flip the image horizontally.
     distorted_image = tf.image.random_flip_left_right(reshaped_image)
   
     # Because these operations are not commutative, consider randomizing
     # the order their operation.
-    #distorted_image = tf.image.random_brightness(
-    #    distorted_image, max_delta=63)
-    #distorted_image = tf.image.random_contrast(
-    #    distorted_image, lower=0.2, upper=1.8)
+    distorted_image = tf.image.random_brightness(
+        distorted_image, max_delta=63)
+    distorted_image = tf.image.random_contrast(
+        distorted_image, lower=0.2, upper=1.8)
   
     # Subtract off the mean and divide by the variance of the pixels.
-    #float_image = tf.image.per_image_standardization(distorted_image)
   
     # Set the shapes of tensors.
     distorted_image.set_shape([height, width, channels])
@@ -112,7 +107,8 @@ def distorted_inputs(data_dir, batch_size):
         'This will take a few minutes.' % min_queue_examples)
   
     # Generate a batch of images by building up a queue of examples.
-    return _generate_image_batch(distorted_image, min_queue_examples, batch_size, shuffle=True)
+    return _generate_image_batch(
+        distorted_image, min_queue_examples, batch_size, shuffle=True)
 
 
 def inputs(eval_data, data_dir, batch_size):
