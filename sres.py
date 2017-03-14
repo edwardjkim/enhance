@@ -23,6 +23,12 @@ tf.app.flags.DEFINE_integer(
 tf.app.flags.DEFINE_string(
     'data_dir', '/notebooks/shared/videos/youtube/tfrecords',
     """Path to the data directory.""")
+tf.app.flags.DEFINE_boolean(
+    'use_fp16', False,
+    """Train the model using fp16.""")
+tf.app.flags.DEFINE_integer(
+    'super_factor', 2,
+    """The magnify factor.""")
 
 IMAGE_ROWS = sres_input.IMAGE_ROWS
 IMAGE_COLS = sres_input.IMAGE_COLS
@@ -30,6 +36,38 @@ NUM_CHANNELS = sres_input.NUM_CHANNELS
 
 # Constants describing the training process.
 INITIAL_LEARNING_RATE = 0.0002       # Initial learning rate.
+
+
+def _variable_on_cpu(name, shape, initializer):
+  """Helper to create a Variable stored on CPU memory.
+  Args:
+    name: name of the variable
+    shape: list of ints
+    initializer: initializer for Variable
+  Returns:
+    Variable Tensor
+  """
+  with tf.device('/cpu:0'):
+    dtype = tf.float16 if FLAGS.use_fp16 else tf.float32
+    var = tf.get_variable(name, shape, initializer=initializer, dtype=dtype)
+  return var
+
+
+def _initialized_variable(name, shape, stddev):
+  """Helper to create a Variable initialized with a truncated normal distribution.
+  Args:
+    name: name of the variable
+    shape: list of ints
+    stddev: standard deviation of a truncated Gaussian
+  Returns:
+    Variable Tensor
+  """
+  dtype = tf.float16 if FLAGS.use_fp16 else tf.float32
+  var = _variable_on_cpu(
+      name,
+      shape,
+      tf.truncated_normal_initializer(stddev=stddev, dtype=dtype))
+  return var
 
 
 def distorted_inputs():
@@ -46,12 +84,14 @@ def distorted_inputs():
     """
     if not FLAGS.data_dir:
         raise ValueError('Please supply a data_dir')
-    # https://github.com/tensorflow/tensorflow/issues/1277
+
     filenames = glob.glob(os.path.join(FLAGS.data_dir, '*'))
     random.shuffle(filenames)
 
     with tf.device('/cpu:0'):
         images = sres_input.distorted_inputs(filenames=filenames, batch_size=FLAGS.batch_size)
+        if FLAGS.use_fp16:
+            images = tf.cast(images, tf.float16)
 
     return images
 
@@ -71,6 +111,7 @@ def inputs(eval_data):
     """
     if not FLAGS.data_dir:
         raise ValueError('Please supply a data_dir')
+
     data_dir = os.path.join(FLAGS.data_dir, 'test.tfrecords')
     images = sres_input.inputs(
         eval_data=eval_data,
@@ -84,42 +125,39 @@ def generator(input_image):
     with tf.variable_scope('gen'):
   
         with tf.variable_scope('deconv1'):
-            kernel = tf.get_variable(
-                'weights', shape=[1, 1, 64, 3], initializer=tf.truncated_normal_initializer(stddev=0.02))
+            kernel = _initialized_variable('weights', shape=[1, 1, 64, 3], stddev=0.02)
             conv_t = tf.nn.conv2d_transpose(
                 input_image, kernel,
-                output_shape=[FLAGS.batch_size, 360 // 4, 640 // 4, 64], strides=[1, 1, 1, 1])
-            biases = tf.get_variable('biases', [64], initializer=tf.constant_initializer(0.0))
+                output_shape=[FLAGS.batch_size, 360 // FLAGS.super_factor, 640 // FLAGS.super_factor, 64], strides=[1, 1, 1, 1])
+            biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
             bias = tf.nn.bias_add(conv_t, biases)
             deconv1 = tf.maximum(bias, 0.2 * bias) # leaky relu
       
         print("deconv1: ", deconv1.get_shape())
     
         with tf.variable_scope('deconv2'):
-            kernel = tf.get_variable(
-                'weights', shape=[5, 5, 64, 64], initializer=tf.truncated_normal_initializer(stddev=0.02))
+            kernel = _initialized_variable('weights', shape=[5, 5, 64, 64], stddev=0.02)
             conv_t = tf.nn.conv2d_transpose(
                 deconv1, kernel,
-                output_shape=[FLAGS.batch_size, 360 // 4, 640 // 4, 64], strides=[1, 1, 1, 1])
-            biases = tf.get_variable('biases', [64], initializer=tf.constant_initializer(0.0))
+                output_shape=[FLAGS.batch_size, 360 // FLAGS.super_factor, 640 // FLAGS.super_factor, 64], strides=[1, 1, 1, 1])
+            biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
             bias = tf.nn.bias_add(conv_t, biases)
             deconv2 = tf.maximum(bias, 0.2 * bias) # leaky relu
       
         print("deconv2: ", deconv2.get_shape())
 
         with tf.variable_scope('deconv3'):
-            kernel = tf.get_variable(
-                'weights', shape=[5, 5, 3 * 4 * 4, 64], initializer=tf.truncated_normal_initializer(stddev=0.02))
+            kernel = _initialized_variable('weights', shape=[5, 5, 3 * 2 * 2, 64], stddev=0.02)
             conv_t = tf.nn.conv2d_transpose(
                 deconv2, kernel,
-                output_shape=[FLAGS.batch_size, 360 // 4, 640 // 4, 3 * 4 * 4], strides=[1, 1, 1, 1])
-            biases = tf.get_variable('biases', [3 * 4 * 4], initializer=tf.constant_initializer(0.0))
+                output_shape=[FLAGS.batch_size, 360 // FLAGS.super_factor, 640 // FLAGS.super_factor, 3 * FLAGS.super_factor ** 2], strides=[1, 1, 1, 1])
+            biases = _variable_on_cpu('biases', [3 * FLAGS.super_factor ** 2], tf.constant_initializer(0.0))
             deconv3 = tf.nn.bias_add(conv_t, biases)
 
         print("deconv3: ", deconv3.get_shape())
 
         with tf.variable_scope('ps'):
-            output = PS(deconv3, 4, color=True)
+            output = PS(deconv3, FLAGS.super_factor, color=True)
       
         print("output: ", output.get_shape())
   

@@ -35,7 +35,7 @@ def train():
     real_images = sres.distorted_inputs()
 
     downsized_images = tf.image.resize_images(
-        real_images, [int(360 / 4), int(640 / 4)], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+        real_images, [int(360 // FLAGS.super_factor), int(640 // FLAGS.super_factor)], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
     # Build a Graph that computes the logits predictions from the inference model.
     fake_images = sres.generator(downsized_images)
@@ -46,9 +46,6 @@ def train():
     # Build a Graph that trains the model with one batch of examples and
     # updates the model parameters.
     train_op = sres.train(loss)
-
-    # Create a saver.
-    #saver = tf.train.Saver(tf.global_variables())
 
     # Build an initialization operation to run below.
     init_op = tf.group(
@@ -80,7 +77,7 @@ def train():
                                examples_per_sec, sec_per_batch))
 
     with tf.train.MonitoredTrainingSession(
-        checkpoint_dir=FLAGS.train_dir,
+        checkpoint_dir=FLAGS.train_dir, save_checkpoint_secs=600,
         hooks=[tf.train.StopAtStepHook(last_step=FLAGS.max_steps),
                tf.train.NanTensorHook(loss),
                _LoggerHook()],

@@ -17,8 +17,8 @@ def read_frames(filename_queue):
     """
   
     class ImageRecord(object):
-
       pass
+
     result = ImageRecord()
   
     result.height = IMAGE_ROWS
@@ -28,26 +28,45 @@ def read_frames(filename_queue):
 
     reader = tf.TFRecordReader()
 
-    #reader = tf.FixedLengthRecordReader(record_bytes=image_bytes)
-    #result.key, value = reader.read(filename_queue)
     _, example_serialized = reader.read(filename_queue)
-
-    feature_map = {
+    features = {
         'image_raw': tf.FixedLenFeature([], dtype=tf.string, default_value='')}
-
-    features = tf.parse_single_example(example_serialized, feature_map)
-    image = tf.image.decode_png(features['image_raw'])
-
-    # Convert from a string to a vector of uint8 that is record_bytes long.
-    #record_bytes = tf.decode_raw(value, tf.uint8)
-
-#    result.uint8image = tf.reshape(
-#        tf.strided_slice(record_bytes, [0], [image_bytes]),
-#        [result.height, result.width, result.depth])
-    image.set_shape([result.height, result.width, result.depth])
-    result.image = image
+    features = tf.parse_single_example(example_serialized, features)
+    result.image = tf.image.decode_png(features['image_raw'])
+    result.image.set_shape([result.height, result.width, result.depth])
   
     return result
+
+
+def _generate_image_batch(image, batch_size, shuffle):
+  """Construct a queued batch of images.
+  Args:
+    image: 3-D Tensor of [height, width, 3] of type.float32.
+    min_queue_examples: int32, minimum number of samples to retain
+      in the queue that provides of batches of examples.
+    batch_size: Number of images per batch.
+    shuffle: boolean indicating whether to use a shuffling queue.
+  Returns:
+    images: Images. 4D tensor of [batch_size, height, width, 3] size.
+  """
+  # Create a queue that shuffles the examples, and then
+  # read 'batch_size' images from the example queue.
+  num_preprocess_threads = 16
+  if shuffle:
+    images = tf.train.shuffle_batch(
+        [image],
+        batch_size=batch_size,
+        num_threads=num_preprocess_threads,
+        capacity=200,
+        min_after_dequeue=100)
+  else:
+    images = tf.train.batch(
+        [image],
+        batch_size=batch_size,
+        num_threads=num_preprocess_threads,
+        capacity=200)
+
+  return images
 
 
 def distorted_inputs(filenames, batch_size):
@@ -80,9 +99,9 @@ def distorted_inputs(filenames, batch_size):
   
     # Set the shapes of tensors.
     #distorted_image.set_shape([height, width, channels])
-  
+
     # Generate a batch of images by building up a queue of examples.
-    return tf.train.shuffle_batch([distorted_image], batch_size=batch_size, num_threads=16, capacity=500, min_after_dequeue=100)
+    return _generate_image_batch(distorted_image, batch_size, shuffle=True)
 
 
 def inputs(eval_data, data_dir, batch_size):
