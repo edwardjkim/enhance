@@ -11,16 +11,13 @@ IMAGE_ROWS = 360
 IMAGE_COLS = 640
 NUM_CHANNELS = 3
 
-# Global constants describing the data set.
-NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 2262
-NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 96
-
 
 def read_frames(filename_queue):
     """
     """
   
     class ImageRecord(object):
+
       pass
     result = ImageRecord()
   
@@ -29,43 +26,34 @@ def read_frames(filename_queue):
     result.depth = NUM_CHANNELS
     image_bytes = result.height * result.width * result.depth
 
-    reader = tf.FixedLengthRecordReader(record_bytes=image_bytes)
-    result.key, value = reader.read(filename_queue)
-  
+    reader = tf.TFRecordReader()
+
+    #reader = tf.FixedLengthRecordReader(record_bytes=image_bytes)
+    #result.key, value = reader.read(filename_queue)
+    _, example_serialized = reader.read(filename_queue)
+
+    feature_map = {
+        'image_raw': tf.FixedLenFeature([], dtype=tf.string, default_value='')}
+
+    features = tf.parse_single_example(example_serialized, feature_map)
+    image = tf.image.decode_png(features['image_raw'])
+
     # Convert from a string to a vector of uint8 that is record_bytes long.
-    record_bytes = tf.decode_raw(value, tf.uint8)
-  
-    result.uint8image = tf.reshape(
-        tf.strided_slice(record_bytes, [0], [image_bytes]),
-        [result.height, result.width, result.depth])
+    #record_bytes = tf.decode_raw(value, tf.uint8)
+
+#    result.uint8image = tf.reshape(
+#        tf.strided_slice(record_bytes, [0], [image_bytes]),
+#        [result.height, result.width, result.depth])
+    image.set_shape([result.height, result.width, result.depth])
+    result.image = image
   
     return result
-
-
-def _generate_image_batch(image, min_queue_examples, batch_size, shuffle):
-    """
-    """
-    num_preprocess_threads = 16
-    if shuffle:
-      images = tf.train.shuffle_batch(
-          [image],
-          batch_size=batch_size,
-          num_threads=num_preprocess_threads,
-          capacity=min_queue_examples + 3 * batch_size,
-          min_after_dequeue=min_queue_examples)
-    else:
-      images = tf.train.batch(
-          [image],
-          batch_size=batch_size,
-          num_threads=num_preprocess_threads,
-          capacity=min_queue_examples + 3 * batch_size)
-  
-    return images
 
 
 def distorted_inputs(filenames, batch_size):
     """
     """
+
     for f in filenames:
         if not tf.gfile.Exists(f):
             raise ValueError('Failed to find file: ' + f)
@@ -75,7 +63,8 @@ def distorted_inputs(filenames, batch_size):
   
     # Read examples from files in the filename queue.
     read_input = read_frames(filename_queue)
-    reshaped_image = tf.cast(read_input.uint8image, tf.float32)
+    reshaped_image = tf.cast(read_input.image, tf.float32)
+    reshaped_image = reshaped_image / 127.5 - 1.0
 
     height = IMAGE_ROWS
     width = IMAGE_COLS
@@ -86,29 +75,14 @@ def distorted_inputs(filenames, batch_size):
 
     # Randomly flip the image horizontally.
     distorted_image = tf.image.random_flip_left_right(reshaped_image)
-  
-    # Because these operations are not commutative, consider randomizing
-    # the order their operation.
-    distorted_image = tf.image.random_brightness(
-        distorted_image, max_delta=63)
-    distorted_image = tf.image.random_contrast(
-        distorted_image, lower=0.2, upper=1.8)
-  
+
     # Subtract off the mean and divide by the variance of the pixels.
   
     # Set the shapes of tensors.
-    distorted_image.set_shape([height, width, channels])
-  
-    # Ensure that the random shuffling has good mixing properties.
-    min_fraction_of_examples_in_queue = 0.4
-    min_queue_examples = int(
-        NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN * min_fraction_of_examples_in_queue)
-    print('Filling queue with %d images before starting to train. '
-        'This will take a few minutes.' % min_queue_examples)
+    #distorted_image.set_shape([height, width, channels])
   
     # Generate a batch of images by building up a queue of examples.
-    return _generate_image_batch(
-        distorted_image, min_queue_examples, batch_size, shuffle=True)
+    return tf.train.shuffle_batch([distorted_image], batch_size=batch_size, num_threads=16, capacity=500, min_after_dequeue=100)
 
 
 def inputs(eval_data, data_dir, batch_size):

@@ -6,6 +6,7 @@ import tensorflow as tf
 
 from pytube import YouTube
 from tqdm import tqdm
+from glob import glob
 
 
 VIDEO_DIR = '/notebooks/shared/videos/youtube/'
@@ -57,3 +58,11 @@ for video_id in tqdm(video_ids):
     ]
     
     pipe = sp.Popen(command, stdin=sp.PIPE, stderr=sp.PIPE)
+
+
+filenames = glob.glob('/notebooks/shared/videos/youtube/frames/*/*.png')
+
+for f in tqdm(filenames):
+    x = imread(f)
+    if (x.shape[0] != 360) or (x.shape[1] != 640) or (x.shape[2] != 3):
+        os.remove(f)
