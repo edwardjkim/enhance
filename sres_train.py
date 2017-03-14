@@ -18,7 +18,7 @@ tf.app.flags.DEFINE_string(
     'train_dir', '/tmp/sres',
     """Directory where to write event logs and checkpoint.""")
 tf.app.flags.DEFINE_integer(
-    'max_steps', 20 * 150000,
+    'max_steps', 100000,
     """Number of batches to run.""")
 tf.app.flags.DEFINE_boolean(
     'log_device_placement', False,
@@ -52,40 +52,43 @@ def train():
       tf.global_variables_initializer(),
       tf.local_variables_initializer())
 
-    class _LoggerHook(tf.train.SessionRunHook):
-      """Logs loss and runtime."""
+    # Create a saver.
+    saver = tf.train.Saver(tf.global_variables())
 
-      def begin(self):
-        self._step = -1
+    # Build an initialization operation to run below.
+    init_op = tf.global_variables_initializer()
 
-      def before_run(self, run_context):
-        self._step += 1
-        self._start_time = time.time()
-        return tf.train.SessionRunArgs(loss)  # Asks for loss value.
+    # Start running operations on the Graph.
+    sess = tf.Session(config=tf.ConfigProto(
+      log_device_placement=FLAGS.log_device_placement))
+    sess.run(init_op)
 
-      def after_run(self, run_context, run_values):
-        duration = time.time() - self._start_time
-        loss_value = run_values.results
-        if self._step % 10 == 0:
-          num_examples_per_step = FLAGS.batch_size
-          examples_per_sec = num_examples_per_step / duration
-          sec_per_batch = float(duration)
+    # Start the queue runners.
+    tf.train.start_queue_runners(sess=sess)
 
-          format_str = ('%s: step %d, loss = %.4f (%.1f examples/sec; %.3f '
-                        'sec/batch)')
-          print (format_str % (datetime.now(), self._step, loss_value,
-                               examples_per_sec, sec_per_batch))
+    for step in xrange(FLAGS.max_steps):
+      start_time = time.time()
+      _, loss_value = sess.run([train_op, loss])
+      duration = time.time() - start_time
 
-    with tf.train.MonitoredTrainingSession(
-        checkpoint_dir=FLAGS.train_dir, save_checkpoint_secs=600,
-        hooks=[tf.train.StopAtStepHook(last_step=FLAGS.max_steps),
-               tf.train.NanTensorHook(loss),
-               _LoggerHook()],
-        config=tf.ConfigProto(
-            log_device_placement=FLAGS.log_device_placement)) as mon_sess:
+      assert not np.isnan(loss_value), 'Model diverged with loss_lab = NaN'
 
-      while not mon_sess.should_stop():
-        mon_sess.run(train_op)
+      if step % 10 == 0:
+        num_examples_per_step = FLAGS.batch_size
+        examples_per_sec = num_examples_per_step / duration
+        sec_per_batch = float(duration)
+
+        format_str = ('%s: step %d, loss = %.3f, '
+                      '(%.1f examples/sec; %.3f sec/batch)\n')
+        sys.stdout.write(format_str % (
+          datetime.now(), step, loss_value, examples_per_sec, sec_per_batch
+        ))
+        sys.stdout.flush()
+
+      # Save the model checkpoint periodically.
+      if step % 100 == 0 or (step + 1) == FLAGS.max_steps:
+        checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
+        saver.save(sess, checkpoint_path, global_step=step)
 
 
 def main(argv=None):

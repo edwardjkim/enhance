@@ -88,10 +88,9 @@ def distorted_inputs():
     filenames = glob.glob(os.path.join(FLAGS.data_dir, '*'))
     random.shuffle(filenames)
 
-    with tf.device('/cpu:0'):
-        images = sres_input.distorted_inputs(filenames=filenames, batch_size=FLAGS.batch_size)
-        if FLAGS.use_fp16:
-            images = tf.cast(images, tf.float16)
+    images = sres_input.distorted_inputs(filenames=filenames, batch_size=FLAGS.batch_size)
+    if FLAGS.use_fp16:
+        images = tf.cast(images, tf.float16)
 
     return images
 
