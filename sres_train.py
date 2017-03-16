@@ -35,7 +35,7 @@ def train():
     real_images = sres.distorted_inputs()
 
     downsized_images = tf.image.resize_images(
-        real_images, [int(360 // FLAGS.super_factor), int(640 // FLAGS.super_factor)], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+        real_images, [int(360 // FLAGS.upscale_factor), int(640 // FLAGS.upscale_factor)], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
     # Build a Graph that computes the logits predictions from the inference model.
     fake_images = sres.generator(downsized_images)
@@ -78,7 +78,7 @@ def train():
         examples_per_sec = num_examples_per_step / duration
         sec_per_batch = float(duration)
 
-        format_str = ('%s: step %d, loss = %.3f, '
+        format_str = ('%s: step %d, loss = %.6f, '
                       '(%.1f examples/sec; %.3f sec/batch)\n')
         sys.stdout.write(format_str % (
           datetime.now(), step, loss_value, examples_per_sec, sec_per_batch

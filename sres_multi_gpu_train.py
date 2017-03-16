@@ -37,8 +37,11 @@ def tower_loss(scope):
   # Get images
   real_images = sres.distorted_inputs()
 
+  downsized_images = tf.image.resize_images(
+    real_images, [int(360 // FLAGS.upscale_factor), int(640 // FLAGS.upscale_factor)], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
   # Build inference Graph.
-  fake_images = sres.generator(real_images)
+  fake_images = sres.generator(downsized_images)
 
   # Build the portion of the Graph calculating the losses. Note that we will
   # assemble the total_loss using a custom function below.
@@ -169,7 +172,7 @@ def train():
         examples_per_sec = num_examples_per_step / duration
         sec_per_batch = duration / FLAGS.num_gpus
 
-        format_str = ('%s: step %d, loss = %.3f (%.1f examples/sec; %.3f '
+        format_str = ('%s: step %d, loss = %.6f (%.1f examples/sec; %.3f '
                       'sec/batch)')
         print (format_str % (datetime.now(), step, loss_value,
                              examples_per_sec, sec_per_batch))
@@ -181,7 +184,7 @@ def train():
 
 
 def main(argv=None):  # pylint: disable=unused-argument
-  sres.maybe_download_and_extract()
+
   if tf.gfile.Exists(FLAGS.train_dir):
     tf.gfile.DeleteRecursively(FLAGS.train_dir)
   tf.gfile.MakeDirs(FLAGS.train_dir)

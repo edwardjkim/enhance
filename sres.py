@@ -27,7 +27,7 @@ tf.app.flags.DEFINE_boolean(
     'use_fp16', False,
     """Train the model using fp16.""")
 tf.app.flags.DEFINE_integer(
-    'super_factor', 2,
+    'upscale_factor', 2,
     """The magnify factor.""")
 
 IMAGE_ROWS = sres_input.IMAGE_ROWS
@@ -36,6 +36,11 @@ NUM_CHANNELS = sres_input.NUM_CHANNELS
 
 # Constants describing the training process.
 INITIAL_LEARNING_RATE = 0.0002       # Initial learning rate.
+
+# If a model is trained with multiple GPUs, prefix all Op names with tower_name
+# to differentiate the operations. Note that this prefix is removed from the
+# names of the summaries when visualizing a model.
+TOWER_NAME = 'tower'
 
 
 def _variable_on_cpu(name, shape, initializer):
@@ -127,7 +132,7 @@ def generator(input_image):
             kernel = _initialized_variable('weights', shape=[1, 1, 64, 3], stddev=0.02)
             conv_t = tf.nn.conv2d_transpose(
                 input_image, kernel,
-                output_shape=[FLAGS.batch_size, 360 // FLAGS.super_factor, 640 // FLAGS.super_factor, 64], strides=[1, 1, 1, 1])
+                output_shape=[FLAGS.batch_size, 360 // FLAGS.upscale_factor, 640 // FLAGS.upscale_factor, 64], strides=[1, 1, 1, 1])
             biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
             bias = tf.nn.bias_add(conv_t, biases)
             deconv1 = tf.maximum(bias, 0.2 * bias) # leaky relu
@@ -138,7 +143,7 @@ def generator(input_image):
             kernel = _initialized_variable('weights', shape=[5, 5, 64, 64], stddev=0.02)
             conv_t = tf.nn.conv2d_transpose(
                 deconv1, kernel,
-                output_shape=[FLAGS.batch_size, 360 // FLAGS.super_factor, 640 // FLAGS.super_factor, 64], strides=[1, 1, 1, 1])
+                output_shape=[FLAGS.batch_size, 360 // FLAGS.upscale_factor, 640 // FLAGS.upscale_factor, 64], strides=[1, 1, 1, 1])
             biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
             bias = tf.nn.bias_add(conv_t, biases)
             deconv2 = tf.maximum(bias, 0.2 * bias) # leaky relu
@@ -146,17 +151,17 @@ def generator(input_image):
         print("deconv2: ", deconv2.get_shape())
 
         with tf.variable_scope('deconv3'):
-            kernel = _initialized_variable('weights', shape=[5, 5, 3 * 2 * 2, 64], stddev=0.02)
+            kernel = _initialized_variable('weights', shape=[5, 5, 3 * FLAGS.upscale_factor ** 2, 64], stddev=0.02)
             conv_t = tf.nn.conv2d_transpose(
                 deconv2, kernel,
-                output_shape=[FLAGS.batch_size, 360 // FLAGS.super_factor, 640 // FLAGS.super_factor, 3 * FLAGS.super_factor ** 2], strides=[1, 1, 1, 1])
-            biases = _variable_on_cpu('biases', [3 * FLAGS.super_factor ** 2], tf.constant_initializer(0.0))
+                output_shape=[FLAGS.batch_size, 360 // FLAGS.upscale_factor, 640 // FLAGS.upscale_factor, 3 * FLAGS.upscale_factor ** 2], strides=[1, 1, 1, 1])
+            biases = _variable_on_cpu('biases', [3 * FLAGS.upscale_factor ** 2], tf.constant_initializer(0.0))
             deconv3 = tf.nn.bias_add(conv_t, biases)
 
         print("deconv3: ", deconv3.get_shape())
 
         with tf.variable_scope('ps'):
-            output = PS(deconv3, FLAGS.super_factor, color=True)
+            output = PS(deconv3, FLAGS.upscale_factor, color=True)
       
         print("output: ", output.get_shape())
   
