@@ -4,6 +4,7 @@ from __future__ import print_function
 
 from datetime import datetime
 import os.path
+import sys
 import re
 import time
 
@@ -176,6 +177,7 @@ def train():
                       'sec/batch)')
         print (format_str % (datetime.now(), step, loss_value,
                              examples_per_sec, sec_per_batch))
+        sys.stdout.flush()
 
       # Save the model checkpoint periodically.
       if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:

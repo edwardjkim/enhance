@@ -137,8 +137,6 @@ def generator(input_image):
             bias = tf.nn.bias_add(conv_t, biases)
             deconv1 = tf.maximum(bias, 0.2 * bias) # leaky relu
       
-        print("deconv1: ", deconv1.get_shape())
-    
         with tf.variable_scope('deconv2'):
             kernel = _initialized_variable('weights', shape=[5, 5, 64, 64], stddev=0.02)
             conv_t = tf.nn.conv2d_transpose(
@@ -148,8 +146,6 @@ def generator(input_image):
             bias = tf.nn.bias_add(conv_t, biases)
             deconv2 = tf.maximum(bias, 0.2 * bias) # leaky relu
       
-        print("deconv2: ", deconv2.get_shape())
-
         with tf.variable_scope('deconv3'):
             kernel = _initialized_variable('weights', shape=[5, 5, 3 * FLAGS.upscale_factor ** 2, 64], stddev=0.02)
             conv_t = tf.nn.conv2d_transpose(
@@ -158,13 +154,9 @@ def generator(input_image):
             biases = _variable_on_cpu('biases', [3 * FLAGS.upscale_factor ** 2], tf.constant_initializer(0.0))
             deconv3 = tf.nn.bias_add(conv_t, biases)
 
-        print("deconv3: ", deconv3.get_shape())
-
         with tf.variable_scope('ps'):
             output = PS(deconv3, FLAGS.upscale_factor, color=True)
       
-        print("output: ", output.get_shape())
-  
     return tf.nn.tanh(output)
 
 
