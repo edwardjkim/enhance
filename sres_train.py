@@ -34,29 +34,40 @@ def train():
     # Get images
     real_images = sres.distorted_inputs()
 
-    downsized_images = tf.image.resize_images(
-        real_images, [int(360 // FLAGS.upscale_factor), int(640 // FLAGS.upscale_factor)], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+    downsampled_real_images = tf.image.resize_images(
+        real_images,
+        [int(360 // FLAGS.upscale_factor),
+        int(640 // FLAGS.upscale_factor)],
+        method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
     # Build a Graph that computes the logits predictions from the inference model.
-    fake_images = sres.generator(downsized_images)
+    fake_images = sres.generator(downsampled_real_images)
+
+    downsampled_fake_images = tf.image.resize_images(
+        fake_images,
+        [int(360 // FLAGS.upscale_factor),
+        int(640 // FLAGS.upscale_factor)],
+        method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
+    disc_features_fake, disc_output_fake = sres.discriminator(downsampled_fake_images)
+    disc_features_real, disc_output_real = sres.discriminator(downsampled_real_images)
 
     # Calculate loss.
-    loss = sres.loss(real_images, fake_images)
+    disc_loss = sres.discriminator_loss(disc_output_real, disc_output_fake)
+    gen_loss = sres.generator_loss(disc_output_fake, fake_images, real_images)
 
     # Build a Graph that trains the model with one batch of examples and
     # updates the model parameters.
-    train_op = sres.train(loss)
+    train_op = sres.train_gan(disc_loss, gen_loss)
 
     # Build an initialization operation to run below.
-    init_op = tf.group(
-      tf.global_variables_initializer(),
-      tf.local_variables_initializer())
+    #init_op = tf.group(
+    #  tf.global_variables_initializer(),
+    #  tf.local_variables_initializer())
+    init_op = tf.global_variables_initializer()
 
     # Create a saver.
     saver = tf.train.Saver(tf.global_variables())
-
-    # Build an initialization operation to run below.
-    init_op = tf.global_variables_initializer()
 
     # Start running operations on the Graph.
     sess = tf.Session(config=tf.ConfigProto(
@@ -68,20 +79,21 @@ def train():
 
     for step in xrange(FLAGS.max_steps):
       start_time = time.time()
-      _, loss_value = sess.run([train_op, loss])
+      _, disc_loss_value, gen_loss_value = sess.run([train_op, disc_loss, gen_loss])
       duration = time.time() - start_time
 
-      assert not np.isnan(loss_value), 'Model diverged with loss_lab = NaN'
+      assert not np.isnan(disc_loss_value), 'Model diverged with loss_lab = NaN'
+      assert not np.isnan(gen_loss_value), 'Model diverged with loss_lab = NaN'
 
       if step % 10 == 0:
         num_examples_per_step = FLAGS.batch_size
         examples_per_sec = num_examples_per_step / duration
         sec_per_batch = float(duration)
 
-        format_str = ('%s: step %d, loss = %.6f, '
+        format_str = ('%s: step %d, disc loss = %.6f, gen loss = %.6f'
                       '(%.1f examples/sec; %.3f sec/batch)\n')
         sys.stdout.write(format_str % (
-          datetime.now(), step, loss_value, examples_per_sec, sec_per_batch
+          datetime.now(), step, disc_loss_value, gen_loss_value, examples_per_sec, sec_per_batch
         ))
         sys.stdout.flush()
 
