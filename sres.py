@@ -21,7 +21,7 @@ tf.app.flags.DEFINE_integer(
     'batch_size', 64,
     """Number of images to process in a batch.""")
 tf.app.flags.DEFINE_string(
-    'data_dir', '/notebooks/shared/videos/youtube/tfrecords',
+    'data_dir', '/notebooks/shared/videos/webcam/tfrecords',
     """Path to the data directory.""")
 tf.app.flags.DEFINE_boolean(
     'use_fp16', False,
@@ -139,11 +139,11 @@ def generator(input_image):
     with tf.variable_scope('gen'):
   
         with tf.variable_scope('deconv1'):
-            kernel = _initialized_variable('weights', shape=[1, 1, 64, 3], stddev=0.02)
-            deconv_shape = [batch_size, 360 // FLAGS.upscale_factor, 640 // FLAGS.upscale_factor, 64]
-            conv_t = tf.nn.conv2d_transpose(
+            kernel = _initialized_variable('weights', shape=[1, 1, 1, 64, 3], stddev=0.02)
+            deconv_shape = [batch_size, 3, 360 // FLAGS.upscale_factor, 640 // FLAGS.upscale_factor, 64]
+            conv_t = tf.nn.conv3d_transpose(
                 input_image, kernel,
-                output_shape=deconv_shape, strides=[1, 1, 1, 1])
+                output_shape=deconv_shape, strides=[1, 1, 1, 1, 1])
             # https://github.com/tensorflow/tensorflow/issues/833
             conv_t = tf.reshape(conv_t, deconv_shape)
             biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
@@ -153,11 +153,11 @@ def generator(input_image):
             deconv1 = tf.nn.relu(bias) + alphas * (bias - abs(bias)) * 0.5
 
         with tf.variable_scope('deconv2'):
-            kernel = _initialized_variable('weights', shape=[5, 5, 64, 64], stddev=0.02)
-            deconv_shape = [batch_size, 360 // FLAGS.upscale_factor, 640 // FLAGS.upscale_factor, 64]
-            conv_t = tf.nn.conv2d_transpose(
+            kernel = _initialized_variable('weights', shape=[1, 5, 5, 64, 64], stddev=0.02)
+            deconv_shape = [batch_size, 3, 360 // FLAGS.upscale_factor, 640 // FLAGS.upscale_factor, 64]
+            conv_t = tf.nn.conv3d_transpose(
                 deconv1, kernel,
-                output_shape=deconv_shape, strides=[1, 1, 1, 1])
+                output_shape=deconv_shape, strides=[1, 1, 1, 1, 1])
             conv_t = tf.reshape(conv_t, deconv_shape)
             biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
             bias = tf.nn.bias_add(conv_t, biases)
@@ -166,11 +166,11 @@ def generator(input_image):
             deconv2 = tf.nn.relu(bias) + alphas * (bias - abs(bias)) * 0.5
 
         with tf.variable_scope('deconv3'):
-            kernel = _initialized_variable('weights', shape=[5, 5, 3 * FLAGS.upscale_factor ** 2, 64], stddev=0.02)
-            deconv_shape = [batch_size, 360 // FLAGS.upscale_factor, 640 // FLAGS.upscale_factor, 3 * FLAGS.upscale_factor ** 2]
-            conv_t = tf.nn.conv2d_transpose(
+            kernel = _initialized_variable('weights', shape=[1, 5, 5, 3 * FLAGS.upscale_factor ** 2, 64], stddev=0.02)
+            deconv_shape = [batch_size, 3, 360 // FLAGS.upscale_factor, 640 // FLAGS.upscale_factor, 3 * FLAGS.upscale_factor ** 2]
+            conv_t = tf.nn.conv3d_transpose(
                 deconv2, kernel,
-                output_shape=deconv_shape, strides=[1, 1, 1, 1])
+                output_shape=deconv_shape, strides=[1, 1, 1, 1, 1])
             conv_t = tf.reshape(conv_t, deconv_shape)
             biases = _variable_on_cpu('biases', [3 * FLAGS.upscale_factor ** 2], tf.constant_initializer(0.0))
             bias = tf.nn.bias_add(conv_t, biases)

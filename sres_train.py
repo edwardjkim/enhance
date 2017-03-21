@@ -34,20 +34,37 @@ def train():
     # Get images
     real_images = sres.distorted_inputs()
 
-    downsampled_real_images = tf.image.resize_images(
-        real_images,
-        [int(360 // FLAGS.upscale_factor),
-        int(640 // FLAGS.upscale_factor)],
-        method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+    real_images = tf.split(real_images, 3, axis=1)
+
+    downsampled_real_images = []
+    for i in range(3):
+        images = tf.squeeze(real_images[i], squeeze_dims=[1])
+        downsampled_real_images.append(tf.image.resize_images(
+            images,
+            [int(360 // FLAGS.upscale_factor),
+            int(640 // FLAGS.upscale_factor)],
+            method=tf.image.ResizeMethod.NEAREST_NEIGHBOR))
+    downsampled_real_images = tf.stack(downsampled_real_images)
+    downsampled_real_images = tf.transpose(downsampled_real_images, perm=[1, 0, 2, 3, 4])
 
     # Build a Graph that computes the logits predictions from the inference model.
     fake_images = sres.generator(downsampled_real_images)
 
-    downsampled_fake_images = tf.image.resize_images(
-        fake_images,
-        [int(360 // FLAGS.upscale_factor),
-        int(640 // FLAGS.upscale_factor)],
-        method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+    fake_images = tf.split(fake_images, 3, axis=1)
+
+    downsampled_fake_images = []
+    for i in range(3):
+        images = tf.squeeze(fake_images[i], squeeze_dims=[1])
+        print(images.get_shape())
+        downsampled_fake_images.append(tf.image.resize_images(
+            images,
+            [int(360 // FLAGS.upscale_factor),
+            int(640 // FLAGS.upscale_factor)],
+            method=tf.image.ResizeMethod.NEAREST_NEIGHBOR))
+    downsampled_fake_images = tf.stack(downsampled_fake_images)
+    downsampled_fake_images = tf.transpose(downsampled_fake_images, perm=[1, 0, 2, 3, 4])
+
+    print(downsampled_fake_images.get_shape())
 
     # Calculate loss.
     gen_loss = sres.loss(real_images, fake_images)

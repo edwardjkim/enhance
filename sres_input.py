@@ -30,11 +30,19 @@ def read_frames(filename_queue):
 
     _, example_serialized = reader.read(filename_queue)
     features = {
-        'image_raw': tf.FixedLenFeature([], dtype=tf.string, default_value='')}
+        'prev_frame': tf.FixedLenFeature([], dtype=tf.string, default_value=''),
+        'curr_frame': tf.FixedLenFeature([], dtype=tf.string, default_value=''),
+        'next_frame': tf.FixedLenFeature([], dtype=tf.string, default_value='')}
     features = tf.parse_single_example(example_serialized, features)
-    result.image = tf.image.decode_png(features['image_raw'])
-    result.image.set_shape([result.height, result.width, result.depth])
-  
+
+    prev_image = tf.image.decode_png(features['prev_frame'])
+    curr_image = tf.image.decode_png(features['curr_frame'])
+    next_image = tf.image.decode_png(features['next_frame'])
+
+    result.image = tf.stack([prev_image, curr_image, next_image])
+
+    result.image.set_shape([3, result.height, result.width, result.depth])
+
     return result
 
 
@@ -84,6 +92,7 @@ def distorted_inputs(filenames, batch_size):
     read_input = read_frames(filename_queue)
     reshaped_image = tf.cast(read_input.image, tf.float32)
     reshaped_image = reshaped_image / 127.5 - 1.0
+    distorted_image = reshaped_image
 
     height = IMAGE_ROWS
     width = IMAGE_COLS
@@ -93,7 +102,7 @@ def distorted_inputs(filenames, batch_size):
     # distortions applied to the image.
 
     # Randomly flip the image horizontally.
-    distorted_image = tf.image.random_flip_left_right(reshaped_image)
+    #distorted_image = tf.image.random_flip_left_right(reshaped_image)
 
     # Subtract off the mean and divide by the variance of the pixels.
   

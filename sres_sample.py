@@ -41,12 +41,9 @@ def read_npy(filenames):
   
         image = misc.imread(f)
 
-        if image.shape[0] != 360:
-            continue
-        if image.shape[1] != 640:
-            continue
-        if image.shape[2] != 3:
-            continue
+        assert image.shape[0] == 360
+        assert image.shape[1] == 640
+        assert image.shape[2] == 3
 
         images.append(image)
   
@@ -57,8 +54,8 @@ def read_npy(filenames):
 
 def sample():
  
-    filenames = glob.glob('/notebooks/shared/videos/youtube/frames/*/*.png')
-    sample_images = read_npy(filenames[-500:])
+    filenames = glob.glob('/notebooks/shared/videos/youtube/frames/0_--eaZIrqo/*.png')
+    sample_images = read_npy(filenames)
 
     print(sample_images.min(), sample_images.max())
 
@@ -70,32 +67,32 @@ def sample():
 
     print(downsized_images.min(), downsized_images.max())
 
-
-    # Get images
-    real_images = tf.placeholder(
-        tf.float32,
-        shape=[64, 180, 320, 3])
-
-    fake_images = sres.generator(real_images)
-
-    saver = tf.train.Saver()
-  
-    with tf.Session() as sess:
-  
-        ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
-  
-        if ckpt and ckpt.model_checkpoint_path:
-            # Restores from checkpoint
-            saver.restore(sess, ckpt.model_checkpoint_path)
-            print('Checkpoint restored from {}'.format(ckpt.model_checkpoint_path))
-        else:
-            print('No checkpoint file found')
-            return
-
-        generated_images = sess.run(fake_images, feed_dict={real_images: downsized_images})
- 
-        np.save(os.path.join(FLAGS.eval_dir, "input.npy"), downsized_images)
-        np.save(os.path.join(FLAGS.eval_dir, "samples.npy"), generated_images)
+    with tf.device('/cpu:0'):
+        # Get images
+        real_images = tf.placeholder(
+            tf.float32,
+            shape=[64, 180, 320, 3])
+    
+        fake_images = sres.generator(real_images)
+    
+        saver = tf.train.Saver()
+      
+        with tf.Session() as sess:
+      
+            ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
+      
+            if ckpt and ckpt.model_checkpoint_path:
+                # Restores from checkpoint
+                saver.restore(sess, ckpt.model_checkpoint_path)
+                print('Checkpoint restored from {}'.format(ckpt.model_checkpoint_path))
+            else:
+                print('No checkpoint file found')
+                return
+    
+            generated_images = sess.run(fake_images, feed_dict={real_images: downsized_images})
+     
+            np.save(os.path.join(FLAGS.eval_dir, "input.npy"), downsized_images)
+            np.save(os.path.join(FLAGS.eval_dir, "samples.npy"), generated_images)
   
     return
 
