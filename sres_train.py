@@ -49,16 +49,12 @@ def train():
         int(640 // FLAGS.upscale_factor)],
         method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
-    disc_features_fake, disc_output_fake = sres.discriminator(downsampled_fake_images)
-    disc_features_real, disc_output_real = sres.discriminator(downsampled_real_images)
-
     # Calculate loss.
-    disc_loss = sres.discriminator_loss(disc_output_real, disc_output_fake)
-    gen_loss = sres.generator_loss(disc_output_fake, fake_images, real_images)
+    gen_loss = sres.loss(real_images, fake_images)
 
     # Build a Graph that trains the model with one batch of examples and
     # updates the model parameters.
-    train_op = sres.train_gan(disc_loss, gen_loss)
+    train_op = sres.train(gen_loss)
 
     # Build an initialization operation to run below.
     #init_op = tf.group(
@@ -79,10 +75,9 @@ def train():
 
     for step in xrange(FLAGS.max_steps):
       start_time = time.time()
-      _, disc_loss_value, gen_loss_value = sess.run([train_op, disc_loss, gen_loss])
+      _, gen_loss_value = sess.run([train_op, gen_loss])
       duration = time.time() - start_time
 
-      assert not np.isnan(disc_loss_value), 'Model diverged with loss_lab = NaN'
       assert not np.isnan(gen_loss_value), 'Model diverged with loss_lab = NaN'
 
       if step % 10 == 0:
@@ -90,10 +85,10 @@ def train():
         examples_per_sec = num_examples_per_step / duration
         sec_per_batch = float(duration)
 
-        format_str = ('%s: step %d, disc loss = %.6f, gen loss = %.6f'
+        format_str = ('%s: step %d, gen loss = %.6f'
                       '(%.1f examples/sec; %.3f sec/batch)\n')
         sys.stdout.write(format_str % (
-          datetime.now(), step, disc_loss_value, gen_loss_value, examples_per_sec, sec_per_batch
+          datetime.now(), step, gen_loss_value, examples_per_sec, sec_per_batch
         ))
         sys.stdout.flush()
 

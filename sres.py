@@ -27,7 +27,7 @@ tf.app.flags.DEFINE_boolean(
     'use_fp16', False,
     """Train the model using fp16.""")
 tf.app.flags.DEFINE_integer(
-    'upscale_factor', 2,
+    'upscale_factor', 4,
     """The magnify factor.""")
 
 IMAGE_ROWS = sres_input.IMAGE_ROWS
@@ -132,56 +132,6 @@ def inputs(eval_data):
     return images
 
 
-def discriminator(input_image):
-
-    batch_size = tf.shape(input_image)[0]
-
-    with tf.variable_scope('disc'):
-
-        with tf.variable_scope('conv1'):
-            kernel = _initialized_variable('weights', shape=[3, 3, 3, 64], stddev=0.02)
-            conv = tf.nn.conv2d(
-                input_image, kernel, strides=[1, 2, 2, 1], padding='SAME')
-            biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
-            bias = tf.nn.bias_add(conv, biases)
-            # prelu
-            alphas = _variable_on_cpu('alpha', [64], tf.constant_initializer(0.0))
-            conv1 = tf.nn.relu(bias) + alphas * (bias - abs(bias)) * 0.5
-
-        with tf.variable_scope('conv2'):
-            kernel = _initialized_variable('weights', shape=[3, 3, 64, 128], stddev=0.02)
-            conv = tf.nn.conv2d(
-                conv1, kernel, strides=[1, 2, 2, 1], padding='SAME')
-            biases = _variable_on_cpu('biases', [128], tf.constant_initializer(0.0))
-            bias = tf.nn.bias_add(conv, biases)
-            # prelu
-            alphas = _variable_on_cpu('alpha', [128], tf.constant_initializer(0.0))
-            conv2 = tf.nn.relu(bias) + alphas * (bias - abs(bias)) * 0.5
-
-        with tf.variable_scope('conv3'):
-            kernel = _initialized_variable('weights', shape=[3, 3, 128, 256], stddev=0.02)
-            conv = tf.nn.conv2d(
-                conv2, kernel, strides=[1, 2, 2, 1], padding='SAME')
-            biases = _variable_on_cpu('biases', [256], tf.constant_initializer(0.0))
-            bias = tf.nn.bias_add(conv, biases)
-            # prelu
-            alphas = _variable_on_cpu('alpha', [256], tf.constant_initializer(0.0))
-            conv3 = tf.nn.relu(bias) + alphas * (bias - abs(bias)) * 0.5
-
-        with tf.variable_scope('drop1'):
-           drop1 = tf.nn.dropout(conv3, 0.5)
-
-        with tf.variable_scope('linear'):
-            _, a, b, c = drop1.get_shape().as_list()
-            reshape = tf.reshape(drop1, [-1, a * b * c])
-            dim = reshape.get_shape()[1].value
-            weights = _initialized_variable('weights', [dim, 2], stddev=0.05)
-            biases = _variable_on_cpu('biases', [2], tf.constant_initializer(0.0))
-            output_before_softmax = tf.nn.bias_add(tf.matmul(reshape, weights), biases)
-
-    return conv3, output_before_softmax
-
-
 def generator(input_image):
 
     batch_size = tf.shape(input_image)[0]
@@ -198,8 +148,10 @@ def generator(input_image):
             conv_t = tf.reshape(conv_t, deconv_shape)
             biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
             bias = tf.nn.bias_add(conv_t, biases)
-            deconv1 = tf.maximum(bias, 0.2 * bias) # leaky relu
-      
+            # prelu
+            alphas = _variable_on_cpu('alpha', [64], tf.constant_initializer(0.2))
+            deconv1 = tf.nn.relu(bias) + alphas * (bias - abs(bias)) * 0.5
+
         with tf.variable_scope('deconv2'):
             kernel = _initialized_variable('weights', shape=[5, 5, 64, 64], stddev=0.02)
             deconv_shape = [batch_size, 360 // FLAGS.upscale_factor, 640 // FLAGS.upscale_factor, 64]
@@ -209,8 +161,10 @@ def generator(input_image):
             conv_t = tf.reshape(conv_t, deconv_shape)
             biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
             bias = tf.nn.bias_add(conv_t, biases)
-            deconv2 = tf.maximum(bias, 0.2 * bias) # leaky relu
-      
+            # prelu
+            alphas = _variable_on_cpu('alpha', [64], tf.constant_initializer(0.2))
+            deconv2 = tf.nn.relu(bias) + alphas * (bias - abs(bias)) * 0.5
+
         with tf.variable_scope('deconv3'):
             kernel = _initialized_variable('weights', shape=[5, 5, 3 * FLAGS.upscale_factor ** 2, 64], stddev=0.02)
             deconv_shape = [batch_size, 360 // FLAGS.upscale_factor, 640 // FLAGS.upscale_factor, 3 * FLAGS.upscale_factor ** 2]
@@ -219,7 +173,10 @@ def generator(input_image):
                 output_shape=deconv_shape, strides=[1, 1, 1, 1])
             conv_t = tf.reshape(conv_t, deconv_shape)
             biases = _variable_on_cpu('biases', [3 * FLAGS.upscale_factor ** 2], tf.constant_initializer(0.0))
-            deconv3 = tf.nn.bias_add(conv_t, biases)
+            bias = tf.nn.bias_add(conv_t, biases)
+            # prelu
+            alphas = _variable_on_cpu('alpha', [3 * FLAGS.upscale_factor ** 2], tf.constant_initializer(0.2))
+            deconv3 = tf.nn.relu(bias) + alphas * (bias - abs(bias)) * 0.5
 
         with tf.variable_scope('ps'):
             output = periodic_shuffle(deconv3, FLAGS.upscale_factor, color=True)
@@ -234,36 +191,6 @@ def loss(real, fake):
     tf.add_to_collection('losses', mse)
 
     return tf.add_n(tf.get_collection('losses'), name='total_loss')
-
-
-def discriminator_loss(real, fake):
-
-    cross_entropy_real = tf.nn.sigmoid_cross_entropy_with_logits(logits=real, labels=tf.ones_like(real))
-    disc_real_loss = tf.reduce_mean(cross_entropy_real, name='disc_real_loss')
-    
-    cross_entropy_fake = tf.nn.sigmoid_cross_entropy_with_logits(logits=fake, labels=tf.zeros_like(fake))
-    disc_fake_loss = tf.reduce_mean(cross_entropy_fake, name='disc_fake_loss')
-
-    return tf.add(disc_real_loss, disc_fake_loss)
-
-
-def generator_loss(disc_output, gen_features, real_features):
-
-    cross_entropy = tf.nn.sigmoid_cross_entropy_with_logits(logits=disc_output, labels=tf.ones_like(disc_output))
-    gen_ce_loss  = tf.reduce_mean(cross_entropy, name='gen_ce_loss')
-
-    # I.e. does the result look like the feature?
-    batch_size, num_rows, num_cols, num_channels = gen_features.get_shape().as_list()
-
-    assert num_rows == real_features.get_shape()[1]
-    assert num_cols == real_features.get_shape()[2]
-    assert num_channels == real_features.get_shape()[3]
-
-    gen_l1_loss  = tf.reduce_mean(tf.abs(gen_features - real_features), name='gen_l1_loss')
-
-    gen_loss = tf.add(0.5 * gen_ce_loss, 0.5 * gen_l1_loss, name='gen_loss')
-
-    return gen_loss
 
 
 def train(total_loss):
@@ -289,21 +216,3 @@ def train(total_loss):
         train_op = tf.no_op(name='train')
   
     return train_op
-
-
-def train_gan(loss_disc, loss_gen, beta1=0.5, beta2=0.999):
-
-  with tf.control_dependencies([loss_disc, loss_gen]):
-
-    opt_disc = tf.train.AdamOptimizer(learning_rate=INITIAL_LEARNING_RATE, beta1=beta1, beta2=beta2)
-    var_list_disc = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='disc')
-    apply_op_disc = opt_disc.minimize(loss_disc, var_list=var_list_disc)
-
-    opt_gen = tf.train.AdamOptimizer(learning_rate=INITIAL_LEARNING_RATE, beta1=beta1, beta2=beta2)
-    var_list_gen = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='gen')
-    apply_op_gen = opt_disc.minimize(loss_gen, var_list=var_list_gen)
-
-  with tf.control_dependencies([apply_op_disc, apply_op_gen]):
-    train_op = tf.no_op(name='train')
-
-  return train_op
