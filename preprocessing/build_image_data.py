@@ -51,11 +51,11 @@ import threading
 import numpy as np
 import tensorflow as tf
 
-tf.app.flags.DEFINE_string('train_directory', '/notebooks/shared/videos/youtube/frames',
+tf.app.flags.DEFINE_string('train_directory', '/notebooks/shared/videos/webcam/frames',
                            'Training data directory')
 tf.app.flags.DEFINE_string('validation_directory', '/tmp',
                            'Validation data directory')
-tf.app.flags.DEFINE_string('output_directory', '/notebooks/shared/videos/youtube/tfrecords',
+tf.app.flags.DEFINE_string('output_directory', '/notebooks/shared/videos/webcam/tfrecords',
                            'Output data directory')
 
 tf.app.flags.DEFINE_integer('train_shards', 128,
