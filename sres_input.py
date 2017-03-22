@@ -31,17 +31,15 @@ def read_frames(filename_queue):
     _, example_serialized = reader.read(filename_queue)
     features = {
         'prev_frame': tf.FixedLenFeature([], dtype=tf.string, default_value=''),
-        'curr_frame': tf.FixedLenFeature([], dtype=tf.string, default_value=''),
-        'next_frame': tf.FixedLenFeature([], dtype=tf.string, default_value='')}
+        'curr_frame': tf.FixedLenFeature([], dtype=tf.string, default_value='')}
     features = tf.parse_single_example(example_serialized, features)
 
     prev_image = tf.image.decode_png(features['prev_frame'])
     curr_image = tf.image.decode_png(features['curr_frame'])
-    next_image = tf.image.decode_png(features['next_frame'])
 
-    result.image = tf.stack([prev_image, curr_image, next_image])
+    result.image = tf.stack([prev_image, curr_image])
 
-    result.image.set_shape([3, result.height, result.width, result.depth])
+    result.image.set_shape([2, result.height, result.width, result.depth])
 
     return result
 

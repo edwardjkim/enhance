@@ -44,7 +44,7 @@ def mkdir_if_not_exists(dirname):
         os.mkdir(dirname)
 
 
-def download_youtube_video(video_id, resolution='720p'):
+def download_youtube_video(video_id, resolution='360p'):
 
     print('Downloading video %s' % video_id)
 
@@ -74,8 +74,7 @@ def generate_png(filename, output_dir, fps=2, vertical=360):
     command = [
         'ffmpeg',
         '-i', filename,
-        '-vf', 'fps=%d' % fps,
-        '-vf', 'scale=-1:%d' % vertical,
+#        '-vf', 'fps=%d' % fps,
         os.path.join(output_dir, 'out%6d.png')
     ]
     
@@ -96,15 +95,13 @@ def main():
 
         video_path = os.path.join(VIDEO_DIR, "{}.mp4".format(v))
 
-        if not os.path.exists(video_path):
-            success = download_youtube_video(v, resolution='720p')
+        download_youtube_video(v, resolution='360p')
 
-        if success:
-            output_dir = os.path.join(VIDEO_DIR, 'frames', v)
+        output_dir = os.path.join(VIDEO_DIR, 'frames', v)
 
-            if not os.path.exists(output_dir):
-                mkdir_if_not_exists(output_dir)
-                generate_png(os.path.join(VIDEO_DIR, '%s.mp4' % v), output_dir, fps=2, vertical=240)
+        if not os.path.exists(output_dir):
+            mkdir_if_not_exists(output_dir)
+            generate_png(os.path.join(VIDEO_DIR, '%s.mp4' % v), output_dir, fps=2, vertical=360)
 
 
 if __name__ == '__main__':

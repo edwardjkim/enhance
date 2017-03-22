@@ -34,10 +34,10 @@ def train():
     # Get images
     real_images = sres.distorted_inputs()
 
-    real_images = tf.split(real_images, 3, axis=1)
+    real_images = tf.split(real_images, 2, axis=1)
 
     downsampled_real_images = []
-    for i in range(3):
+    for i in range(2):
         images = tf.squeeze(real_images[i], squeeze_dims=[1])
         downsampled_real_images.append(tf.image.resize_images(
             images,
@@ -50,10 +50,10 @@ def train():
     # Build a Graph that computes the logits predictions from the inference model.
     fake_images = sres.generator(downsampled_real_images)
 
-    fake_images = tf.split(fake_images, 3, axis=1)
+    fake_images = tf.split(fake_images, 2, axis=1)
 
     downsampled_fake_images = []
-    for i in range(3):
+    for i in range(2):
         images = tf.squeeze(fake_images[i], squeeze_dims=[1])
         print(images.get_shape())
         downsampled_fake_images.append(tf.image.resize_images(
