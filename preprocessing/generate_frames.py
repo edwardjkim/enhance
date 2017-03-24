@@ -3,7 +3,7 @@ import subprocess as sp
 
 import numpy as np
 import tensorflow as tf
-from scipy.misc import imread
+from scipy.misc import imread, imsave
 
 from pytube import YouTube
 from tqdm import tqdm
@@ -58,7 +58,8 @@ def download_youtube_video(video_id, resolution='360p'):
     
     try:
         video = yt.get('mp4', resolution)
-    except:
+    except Exception as e:
+        print(e)
         return False
 
     try:
@@ -69,13 +70,13 @@ def download_youtube_video(video_id, resolution='360p'):
     return True
 
 
-def generate_png(filename, output_dir, fps=2, vertical=360):
+def generate_jpg(filename, output_dir, fps=1, vertical=360):
 
     command = [
         'ffmpeg',
         '-i', filename,
-#        '-vf', 'fps=%d' % fps,
-        os.path.join(output_dir, 'out%6d.png')
+        '-vf', 'fps=%d' % fps,
+        os.path.join(output_dir, 'out%6d.jpg')
     ]
     
     pipe = sp.Popen(command, stdin=sp.PIPE, stderr=sp.PIPE)
@@ -89,7 +90,7 @@ def main():
     mkdir_if_not_exists(os.path.join(VIDEO_DIR, 'frames'))
 
     with open('webcam.txt') as f:
-        video_ids = [line.strip() for line in f]
+        video_ids = [line.strip().split('=')[-1] for line in f]
 
     for v in video_ids:
 
@@ -101,7 +102,8 @@ def main():
 
         if not os.path.exists(output_dir):
             mkdir_if_not_exists(output_dir)
-            generate_png(os.path.join(VIDEO_DIR, '%s.mp4' % v), output_dir, fps=2, vertical=360)
+
+        generate_jpg(os.path.join(VIDEO_DIR, '%s.mp4' % v), output_dir, fps=1, vertical=360)
 
 
 if __name__ == '__main__':

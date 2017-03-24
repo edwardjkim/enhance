@@ -1,42 +1,3 @@
-"""Converts image data to TFRecords file format with Example protos.
-
-Modified from
-https://github.com/tensorflow/models/blob/master/inception/inception/data/build_image_data.py
-
-The image data set is expected to reside in PNG files located in the
-following directory structure.
-
-  data_dir/video_id/image0.png
-  data_dir/video_id/image1.png
-  ...
-  data_dir/video_id/weird-image.png
-  data_dir/video_id/my-image.png
-  ...
-
-where the sub-directory is the unique label associated with these images.
-
-This TensorFlow script converts the training and evaluation data into
-a sharded data set consisting of TFRecord files
-
-  train_directory/train-00000-of-01024
-  train_directory/train-00001-of-01024
-  ...
-  train_directory/train-00127-of-01024
-
-and
-
-  validation_directory/validation-00000-of-00128
-  validation_directory/validation-00001-of-00128
-  ...
-  validation_directory/validation-00127-of-00128
-
-where we have selected 1024 and 128 shards for each data set. Each record
-within the TFRecord file is a serialized Example proto. The Example proto
-contains the following fields:
-
-  image/image_raw: string containing PNG encoded image in RGB colorspace
-
-"""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -47,23 +8,23 @@ import random
 import sys
 import threading
 
-
 import numpy as np
+from scipy.misc import imread, imsave
 import tensorflow as tf
 
 tf.app.flags.DEFINE_string('train_directory', '/notebooks/shared/videos/webcam/frames',
                            'Training data directory')
-tf.app.flags.DEFINE_string('validation_directory', '/tmp',
+tf.app.flags.DEFINE_string('validation_directory', '/notebooks/shared/videos/webcam_valid/frames',
                            'Validation data directory')
 tf.app.flags.DEFINE_string('output_directory', '/notebooks/shared/videos/webcam/tfrecords',
                            'Output data directory')
 
-tf.app.flags.DEFINE_integer('train_shards', 128,
+tf.app.flags.DEFINE_integer('train_shards', 16,
                             'Number of shards in training TFRecord files.')
-tf.app.flags.DEFINE_integer('validation_shards', 128,
+tf.app.flags.DEFINE_integer('validation_shards', 16,
                             'Number of shards in validation TFRecord files.')
 
-tf.app.flags.DEFINE_integer('num_threads', 8,
+tf.app.flags.DEFINE_integer('num_threads', 16,
                             'Number of threads to preprocess the images.')
 
 
@@ -99,19 +60,19 @@ class ImageCoder(object):
     # Create a single Session to run all image coding calls.
     self._sess = tf.Session()
 
-    # Initializes function that converts PNG to JPEG data.
-    self._png_data = tf.placeholder(dtype=tf.string)
-    self._decode_png = tf.image.decode_png(self._png_data, channels=3)
+    self._jpg_data = tf.placeholder(dtype=tf.string)
+    self._decode_jpg = tf.image.decode_jpeg(self._jpg_data, channels=3)
 
-  def decode_png(self, image_data):
-    image = self._sess.run(self._decode_png,
-                           feed_dict={self._png_data: image_data})
+  def decode_jpg(self, image_data):
+
+    image = self._sess.run(self._decode_jpg,
+                           feed_dict={self._jpg_data: image_data})
     assert len(image.shape) == 3
     assert image.shape[2] == 3
     return image
 
 
-def _process_image(filename, coder):
+def _process_image(filename, coder, vertical=360):
   """Process a single image file.
 
   Args:
@@ -127,15 +88,31 @@ def _process_image(filename, coder):
     image_data = f.read()
 
   # Decode the RGB PNG>
-  image = coder.decode_png(image_data)
+  image = coder.decode_jpg(image_data)
 
-  print(filename)
+  height = image.shape[0]
+  assert height == vertical
+
+  width = image.shape[1]
+
+  desired_width = int(vertical / 3 * 4)
+  if width > desired_width:
+    image_array = imread(filename)
+    offset_width = int(0.5 * (width - desired_width))
+    image_array = image_array[:, offset_width: offset_width + desired_width, :]
+    os.remove(filename)
+    imsave(filename, image_array)
+
+    with tf.gfile.FastGFile(filename, 'r') as f:
+      image_data = f.read()
+    image = coder.decode_jpg(image_data)
+    width = image.shape[1]
+
+  assert width == desired_width
+
   # Check that image converted to RGB
   assert len(image.shape) == 3
-  height = image.shape[0]
-  assert height == 360
-  width = image.shape[1]
-  assert width == 640
+
   assert image.shape[2] == 3
 
   return image_data, height, width
@@ -260,14 +237,14 @@ def _find_image_files(data_dir):
 
   filenames = []
 
-  png_file_path = '{}/*/*.png'.format(data_dir)
+  jpg_file_path = '{}/*/*.jpg'.format(data_dir)
 
   child_dir = [x for x in tf.gfile.Glob('{}/*'.format(data_dir)) if os.path.isdir(x)]
 
   for d in child_dir:
 
-    png_file_path = '{}/*.png'.format(d)
-    matching_files = sorted(tf.gfile.Glob(png_file_path))
+    jpg_file_path = '{}/*.jpg'.format(d)
+    matching_files = sorted(tf.gfile.Glob(jpg_file_path))
 
     for i in range(1, len(matching_files)):
       prev_frame = matching_files[i - 1]
