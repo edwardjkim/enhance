@@ -52,7 +52,7 @@ def _variable_on_cpu(name, shape, initializer):
   Returns:
     Variable Tensor
   """
-  with tf.device('/cpu:0'):
+  with tf.device('/gpu:0'):
 
       dtype = tf.float16 if FLAGS.use_fp16 else tf.float32
 
@@ -140,7 +140,7 @@ def generator(input_image):
   
         with tf.variable_scope('deconv1'):
             kernel = _initialized_variable('weights', shape=[1, 1, 1, 64, 3], stddev=0.02)
-            deconv_shape = [batch_size, 2, 360 // FLAGS.upscale_factor, 640 // FLAGS.upscale_factor, 64]
+            deconv_shape = [batch_size, 2, 360 // FLAGS.upscale_factor, 480 // FLAGS.upscale_factor, 64]
             conv_t = tf.nn.conv3d_transpose(
                 input_image, kernel,
                 output_shape=deconv_shape, strides=[1, 1, 1, 1, 1])
@@ -154,7 +154,7 @@ def generator(input_image):
 
         with tf.variable_scope('deconv2'):
             kernel = _initialized_variable('weights', shape=[1, 5, 5, 64, 64], stddev=0.02)
-            deconv_shape = [batch_size, 2, 360 // FLAGS.upscale_factor, 640 // FLAGS.upscale_factor, 64]
+            deconv_shape = [batch_size, 2, 360 // FLAGS.upscale_factor, 480 // FLAGS.upscale_factor, 64]
             conv_t = tf.nn.conv3d_transpose(
                 deconv1, kernel,
                 output_shape=deconv_shape, strides=[1, 1, 1, 1, 1])
@@ -167,7 +167,7 @@ def generator(input_image):
 
         with tf.variable_scope('deconv3'):
             kernel = _initialized_variable('weights', shape=[1, 5, 5, 3 * FLAGS.upscale_factor ** 2, 64], stddev=0.02)
-            deconv_shape = [batch_size, 2, 360 // FLAGS.upscale_factor, 640 // FLAGS.upscale_factor, 3 * FLAGS.upscale_factor ** 2]
+            deconv_shape = [batch_size, 2, 360 // FLAGS.upscale_factor, 480 // FLAGS.upscale_factor, 3 * FLAGS.upscale_factor ** 2]
             conv_t = tf.nn.conv3d_transpose(
                 deconv2, kernel,
                 output_shape=deconv_shape, strides=[1, 1, 1, 1, 1])

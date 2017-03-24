@@ -42,7 +42,7 @@ def train():
         downsampled_real_images.append(tf.image.resize_images(
             images,
             [int(360 // FLAGS.upscale_factor),
-            int(640 // FLAGS.upscale_factor)],
+            int(480 // FLAGS.upscale_factor)],
             method=tf.image.ResizeMethod.NEAREST_NEIGHBOR))
     downsampled_real_images = tf.stack(downsampled_real_images)
     downsampled_real_images = tf.transpose(downsampled_real_images, perm=[1, 0, 2, 3, 4])
@@ -59,7 +59,7 @@ def train():
         downsampled_fake_images.append(tf.image.resize_images(
             images,
             [int(360 // FLAGS.upscale_factor),
-            int(640 // FLAGS.upscale_factor)],
+            int(480 // FLAGS.upscale_factor)],
             method=tf.image.ResizeMethod.NEAREST_NEIGHBOR))
     downsampled_fake_images = tf.stack(downsampled_fake_images)
     downsampled_fake_images = tf.transpose(downsampled_fake_images, perm=[1, 0, 2, 3, 4])

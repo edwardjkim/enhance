@@ -8,7 +8,7 @@ import tensorflow as tf
 
 
 IMAGE_ROWS = 360
-IMAGE_COLS = 640
+IMAGE_COLS = 480
 NUM_CHANNELS = 3
 
 
@@ -34,8 +34,8 @@ def read_frames(filename_queue):
         'curr_frame': tf.FixedLenFeature([], dtype=tf.string, default_value='')}
     features = tf.parse_single_example(example_serialized, features)
 
-    prev_image = tf.image.decode_png(features['prev_frame'])
-    curr_image = tf.image.decode_png(features['curr_frame'])
+    prev_image = tf.image.decode_jpeg(features['prev_frame'])
+    curr_image = tf.image.decode_jpeg(features['curr_frame'])
 
     result.image = tf.stack([prev_image, curr_image])
 
