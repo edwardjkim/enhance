@@ -13,6 +13,7 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 import sres
 
+
 FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_string('train_dir', '/tmp/sres_train',
@@ -26,6 +27,15 @@ tf.app.flags.DEFINE_boolean('log_device_placement', False,
                             """Whether to log device placement.""")
 
 
+IMAGE_HEIGHT = sres.IMAGE_HEIGHT
+IMAGE_WIDTH = sres.IMAGE_WIDTH
+NUM_CHANNELS = sres.NUM_CHANNELS
+
+# If a model is trained with multiple GPUs, prefix all Op names with tower_name
+# to differentiate the operations.
+TOWER_NAME = 'tower'
+
+
 def tower_loss(scope):
   """Calculate the total loss on a single tower running the model.
 
@@ -36,13 +46,11 @@ def tower_loss(scope):
      Tensor of shape [] containing the total loss for a batch of data
   """
   # Get images
-  real_images = sres.distorted_inputs()
-
-  downsized_images = tf.image.resize_images(
-    real_images, [int(360 // FLAGS.upscale_factor), int(640 // FLAGS.upscale_factor)], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+  real_images = sres.inputs()
+  downsampled_real_images = split_and_resize(real_images)
 
   # Build inference Graph.
-  fake_images = sres.generator(downsized_images)
+  fake_images = sres.generator(downsampled_real_images)
 
   # Build the portion of the Graph calculating the losses. Note that we will
   # assemble the total_loss using a custom function below.
@@ -59,8 +67,37 @@ def tower_loss(scope):
   for l in losses + [total_loss]:
     # Remove 'tower_[0-9]/' from the name in case this is a multi-GPU training
     # session. This helps the clarity of presentation on tensorboard.
-    loss_name = re.sub('%s_[0-9]*/' % sres.TOWER_NAME, '', l.op.name)
+    loss_name = re.sub('%s_[0-9]*/' % TOWER_NAME, '', l.op.name)
     tf.summary.scalar(loss_name, l)
+
+  return total_loss
+
+
+def tower_valid_loss(scope):
+  """Calculate the total loss on a single tower running the model.
+
+  Args:
+    scope: unique prefix string identifying the tower, e.g. 'tower_0'
+
+  Returns:
+     Tensor of shape [] containing the total loss for a batch of data
+  """
+  # Get images
+  real_images = sres.inputs(eval_data=True)
+  downsampled_real_images = split_and_resize(real_images)
+
+  # Build inference Graph.
+  fake_images = sres.generator(downsampled_real_images)
+
+  # Build the portion of the Graph calculating the losses. Note that we will
+  # assemble the total_loss using a custom function below.
+  _ = sres.valid_loss(real_images, fake_images)
+
+  # Assemble all of the losses for the current tower only.
+  losses = tf.get_collection('valid_losses', scope)
+
+  # Calculate the total loss for the current tower.
+  total_loss = tf.add_n(losses, name='total_valid_loss')
 
   return total_loss
 
@@ -103,6 +140,24 @@ def average_gradients(tower_grads):
   return average_grads
 
 
+def split_and_resize(images):
+
+    images = tf.split(images, 2, axis=1)
+
+    downsampled_images = []
+    for i in range(2):
+        image = tf.squeeze(images[i], squeeze_dims=[1])
+        downsampled_images.append(tf.image.resize_images(
+            image,
+            [int(IMAGE_HEIGHT // FLAGS.upscale_factor), int(IMAGE_WIDTH // FLAGS.upscale_factor)],
+            method=tf.image.ResizeMethod.NEAREST_NEIGHBOR))
+    downsampled_images = tf.stack(downsampled_images)
+    downsampled_images = tf.transpose(
+        downsampled_images, perm=[1, 0, 2, 3, 4])
+
+    return downsampled_images
+
+
 def train():
 
   with tf.Graph().as_default(), tf.device('/cpu:0'):
@@ -113,14 +168,14 @@ def train():
         initializer=tf.constant_initializer(0), trainable=False)
 
     # Create an optimizer that performs gradient descent.
-    opt = tf.train.AdamOptimizer(sres.INITIAL_LEARNING_RATE, beta1=0.5)
+    opt = tf.train.AdamOptimizer(sres.INITIAL_LEARNING_RATE, beta1=sres.ADAM_MOMENTUM)
 
     # Calculate the gradients for each model tower.
     tower_grads = []
     with tf.variable_scope(tf.get_variable_scope()):
       for i in xrange(FLAGS.num_gpus):
         with tf.device('/gpu:%d' % i):
-          with tf.name_scope('%s_%d' % (sres.TOWER_NAME, i)) as scope:
+          with tf.name_scope('%s_%d' % (TOWER_NAME, i)) as scope:
             # Calculate the loss for one tower of the model. This function
             # constructs the entire model but shares the variables across
             # all towers.
@@ -138,6 +193,25 @@ def train():
     # We must calculate the mean of each gradient. Note that this is the
     # synchronization point across all towers.
     grads = average_gradients(tower_grads)
+
+    # Calculate the losses for each model tower.
+    tower_valid_losses = []
+    with tf.variable_scope(tf.get_variable_scope()):
+      for i in xrange(FLAGS.num_gpus):
+        with tf.device('/gpu:%d' % i):
+          with tf.name_scope('%s_%d' % (TOWER_NAME, i)) as scope:
+            # Calculate the loss for one tower of the model. This function
+            # constructs the entire model but shares the variables across
+            # all towers.
+            valid_loss = tower_valid_loss(scope)
+
+            # Reuse variables for the next tower.
+            tf.get_variable_scope().reuse_variables()
+
+            # Keep track of the gradients across all towers.
+            tower_valid_losses.append(valid_loss)
+
+    total_valid_loss = tf.reduce_mean(tower_valid_losses)
 
     # Apply the gradients to adjust the shared variables.
     train_op = opt.apply_gradients(grads, global_step=global_step)
@@ -161,6 +235,8 @@ def train():
 
     summary_writer = tf.summary.FileWriter(FLAGS.train_dir, sess.graph)
 
+    best_valid_loss = np.inf
+
     for step in xrange(FLAGS.max_steps):
       start_time = time.time()
       _, loss_value = sess.run([train_op, loss])
@@ -183,6 +259,27 @@ def train():
       if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
         checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
         saver.save(sess, checkpoint_path, global_step=step)
+        current_loss = 0
+        num_steps_per_eval = int(sres.NUM_EXAMPLES_PER_EPOCH_FOR_EVAL / FLAGS.batch_size / FLAGS.num_gpus)
+        for _ in range(num_steps_per_eval):
+          current_loss += sess.run(total_valid_loss)
+        current_loss /= num_steps_per_eval
+        format_str = ('Validation: step %d, validation loss = %.6f\n')
+        sys.stdout.write(format_str % (step, current_loss))
+        sys.stdout.flush()
+        if current_loss < best_valid_loss:
+          best_valid_loss = current_loss
+          early_stopping_rounds = 0 # reset early stopping rounds count
+          checkpoint_path = os.path.join(FLAGS.train_dir, 'best_model.ckpt')
+          saver.save(sess, checkpoint_path, global_step=step)
+        elif early_stopping_rounds > FLAGS.early_stopping_rounds:
+          checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
+          saver.save(sess, checkpoint_path, global_step=step)
+          print("Valition loss didn't improve for {}... Stopping early.".format(FLAGS.early_stopping_rounds))
+          sys.stdout.flush()
+          break
+        else:
+          early_stopping_rounds += 1
 
 
 def main(argv=None):  # pylint: disable=unused-argument
