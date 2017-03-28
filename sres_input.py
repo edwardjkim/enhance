@@ -16,8 +16,6 @@ NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 18119
 
 
 def read_frames(filename_queue):
-    """
-    """
   
     class ImageRecord(object):
       pass
@@ -48,34 +46,34 @@ def read_frames(filename_queue):
 
 
 def _generate_image_batch(image, batch_size, shuffle):
-  """Construct a queued batch of images.
-  Args:
-    image: 3-D Tensor of [height, width, 3] of type.float32.
-    min_queue_examples: int32, minimum number of samples to retain
-      in the queue that provides of batches of examples.
-    batch_size: Number of images per batch.
-    shuffle: boolean indicating whether to use a shuffling queue.
-  Returns:
-    images: Images. 4D tensor of [batch_size, height, width, 3] size.
-  """
-  # Create a queue that shuffles the examples, and then
-  # read 'batch_size' images from the example queue.
-  num_preprocess_threads = 16
-  if shuffle:
-    images = tf.train.shuffle_batch(
-        [image],
-        batch_size=batch_size,
-        num_threads=num_preprocess_threads,
-        capacity=200,
-        min_after_dequeue=100)
-  else:
-    images = tf.train.batch(
-        [image],
-        batch_size=batch_size,
-        num_threads=num_preprocess_threads,
-        capacity=200)
+    """Construct a queued batch of images.
+    Args:
+      image: 3-D Tensor of [height, width, 3] of type.float32.
+      min_queue_examples: int32, minimum number of samples to retain
+        in the queue that provides of batches of examples.
+      batch_size: Number of images per batch.
+      shuffle: boolean indicating whether to use a shuffling queue.
+    Returns:
+      images: Images. 4D tensor of [batch_size, height, width, 3] size.
+    """
+    # Create a queue that shuffles the examples, and then
+    # read 'batch_size' images from the example queue.
+    num_preprocess_threads = 16
+    if shuffle:
+        images = tf.train.shuffle_batch(
+            [image],
+            batch_size=batch_size,
+            num_threads=num_preprocess_threads,
+            capacity=200,
+            min_after_dequeue=100)
+    else:
+        images = tf.train.batch(
+            [image],
+            batch_size=batch_size,
+            num_threads=num_preprocess_threads,
+            capacity=200)
 
-  return images
+    return images
 
 
 def inputs(filenames, batch_size, shuffle=True):
@@ -97,17 +95,6 @@ def inputs(filenames, batch_size, shuffle=True):
     height = IMAGE_HEIGHT
     width = IMAGE_WIDTH
     channels = NUM_CHANNELS
-
-    # Image processing for training the network. Note the many random
-    # distortions applied to the image.
-
-    # Randomly flip the image horizontally.
-    #distorted_image = tf.image.random_flip_left_right(reshaped_image)
-
-    # Subtract off the mean and divide by the variance of the pixels.
-  
-    # Set the shapes of tensors.
-    #distorted_image.set_shape([height, width, channels])
 
     # Generate a batch of images by building up a queue of examples.
     return _generate_image_batch(reshaped_image, batch_size, shuffle=shuffle)
