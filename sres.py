@@ -104,9 +104,9 @@ def inputs(eval_data=False):
         raise ValueError('Please supply a data_dir')
 
     if eval_data:
-        filenames = glob.glob(os.path.join(FLAGS.data_dir, 'valid', '*'))
+        filenames = glob.glob(os.path.join(FLAGS.data_dir, 'tfrecords', '*'))
     else:
-        filenames = glob.glob(os.path.join(FLAGS.data_dir, 'train', '*'))
+        filenames = glob.glob(os.path.join(FLAGS.data_dir, 'tfrecords', '*'))
         random.shuffle(filenames)
 
     images = sres_input.inputs(

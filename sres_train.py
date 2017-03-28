@@ -36,9 +36,9 @@ def split_and_resize(images):
 
     downsampled_images = []
     for i in range(2):
-        images = tf.squeeze(images[i], squeeze_dims=[1])
+        image = tf.squeeze(images[i], squeeze_dims=[1])
         downsampled_images.append(tf.image.resize_images(
-            images,
+            image,
             [int(IMAGE_HEIGHT // FLAGS.upscale_factor), int(IMAGE_WIDTH // FLAGS.upscale_factor)],
             method=tf.image.ResizeMethod.NEAREST_NEIGHBOR))
     downsampled_images = tf.stack(downsampled_images)
@@ -118,10 +118,13 @@ def train():
 
       if step % 200 == 0:
         current_loss = 0
-        num_steps_per_eval = int(sers.NUM_EXAMPLES_PER_EVAL / FLAGS.batch_size)
+        num_steps_per_eval = int(sres.NUM_EXAMPLES_PER_EPOCH_FOR_EVAL / FLAGS.batch_size)
         for _ in range(num_steps_per_eval):
           current_loss += sess.run(valid_loss)
         current_loss /= num_steps_per_eval
+        format_str = ('Validation: step %d, validation loss = %.6f')
+        sys.stdout.write(format_str % (step, current_loss))
+        sys.stdout.flush()
         if current_loss < best_valid_loss:
           best_valid_loss = current_loss
           early_stopping_rounds = 0 # reset early stopping rounds count
