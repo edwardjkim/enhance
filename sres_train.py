@@ -25,6 +25,29 @@ tf.app.flags.DEFINE_boolean(
     """Whether to log device placement.""")
 
 
+IMAGE_HEIGHT = sres.IMAGE_HEIGHT
+IMAGE_WIDTH = sres.IMAGE_WIDTH
+NUM_CHANNELS = sres.NUM_CHANNELS
+
+
+def split_and_resize(images):
+
+    images = tf.split(images, 2, axis=1)
+
+    downsampled_images = []
+    for i in range(2):
+        images = tf.squeeze(images[i], squeeze_dims=[1])
+        downsampled_images.append(tf.image.resize_images(
+            images,
+            [int(IMAGE_HEIGHT // FLAGS.upscale_factor), int(IMAGE_WIDTH // FLAGS.upscale_factor)],
+            method=tf.image.ResizeMethod.NEAREST_NEIGHBOR))
+    downsampled_images = tf.stack(downsampled_images)
+    downsampled_images = tf.transpose(
+        downsampled_images, perm=[1, 0, 2, 3, 4])
+
+    return downsampled_images
+
+
 def train():
 
   with tf.Graph().as_default():
@@ -32,51 +55,28 @@ def train():
     global_step = tf.contrib.framework.get_or_create_global_step()
 
     # Get images
-    real_images = sres.distorted_inputs()
-
-    real_images = tf.split(real_images, 2, axis=1)
-
-    downsampled_real_images = []
-    for i in range(2):
-        images = tf.squeeze(real_images[i], squeeze_dims=[1])
-        downsampled_real_images.append(tf.image.resize_images(
-            images,
-            [int(360 // FLAGS.upscale_factor),
-            int(480 // FLAGS.upscale_factor)],
-            method=tf.image.ResizeMethod.NEAREST_NEIGHBOR))
-    downsampled_real_images = tf.stack(downsampled_real_images)
-    downsampled_real_images = tf.transpose(downsampled_real_images, perm=[1, 0, 2, 3, 4])
+    real_images = sres.inputs()
+    downsampled_real_images = split_and_resize(real_images)
 
     # Build a Graph that computes the logits predictions from the inference model.
     fake_images = sres.generator(downsampled_real_images)
-
-    fake_images = tf.split(fake_images, 2, axis=1)
-
-    downsampled_fake_images = []
-    for i in range(2):
-        images = tf.squeeze(fake_images[i], squeeze_dims=[1])
-        print(images.get_shape())
-        downsampled_fake_images.append(tf.image.resize_images(
-            images,
-            [int(360 // FLAGS.upscale_factor),
-            int(480 // FLAGS.upscale_factor)],
-            method=tf.image.ResizeMethod.NEAREST_NEIGHBOR))
-    downsampled_fake_images = tf.stack(downsampled_fake_images)
-    downsampled_fake_images = tf.transpose(downsampled_fake_images, perm=[1, 0, 2, 3, 4])
-
-    print(downsampled_fake_images.get_shape())
+    downsampled_fake_images = split_and_resize(fake_images)
 
     # Calculate loss.
     gen_loss = sres.loss(real_images, fake_images)
+
+    # Validation data
+    valid_real_images = sres.inputs(eval_data=True)
+    downsampled_valid_real_images = split_and_resize(valid_real_images)
+    valid_fake_images = sres.generator(downsampled_valid_real_images)
+
+    valid_loss = sres.loss(valid_real_images, valid_fake_images)
 
     # Build a Graph that trains the model with one batch of examples and
     # updates the model parameters.
     train_op = sres.train(gen_loss)
 
     # Build an initialization operation to run below.
-    #init_op = tf.group(
-    #  tf.global_variables_initializer(),
-    #  tf.local_variables_initializer())
     init_op = tf.global_variables_initializer()
 
     # Create a saver.
@@ -89,6 +89,8 @@ def train():
 
     # Start the queue runners.
     tf.train.start_queue_runners(sess=sess)
+
+    best_valid_loss = np.inf
 
     for step in xrange(FLAGS.max_steps):
       start_time = time.time()
@@ -110,10 +112,30 @@ def train():
         sys.stdout.flush()
 
       # Save the model checkpoint periodically.
-      if step % 100 == 0 or (step + 1) == FLAGS.max_steps:
+      if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
         checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
         saver.save(sess, checkpoint_path, global_step=step)
 
+      if step % 200 == 0:
+        current_loss = 0
+        num_steps_per_eval = int(sers.NUM_EXAMPLES_PER_EVAL / FLAGS.batch_size)
+        for _ in range(num_steps_per_eval):
+          current_loss += sess.run(valid_loss)
+        current_loss /= num_steps_per_eval
+        if current_loss < best_valid_loss:
+          best_valid_loss = current_loss
+          early_stopping_rounds = 0 # reset early stopping rounds count
+          checkpoint_path = os.path.join(FLAGS.train_dir, 'best_model.ckpt')
+          saver.save(sess, checkpoint_path, global_step=step)
+        elif early_stopping_rounds > FLAGS.early_stopping_rounds:
+          checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
+          saver.save(sess, checkpoint_path, global_step=step)
+          print("Valition loss didn't improve for {}... Stopping early.".format(FLAGS.early_stopping_rounds))
+          sys.stdout.flush()
+          break
+        else:
+          early_stopping_rounds += 1
+        
 
 def main(argv=None):
 

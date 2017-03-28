@@ -7,9 +7,12 @@ import os
 import tensorflow as tf
 
 
-IMAGE_ROWS = 360
-IMAGE_COLS = 480
+IMAGE_HEIGHT = 360
+IMAGE_WIDTH = 480
 NUM_CHANNELS = 3
+
+NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 233701
+NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 18119
 
 
 def read_frames(filename_queue):
@@ -21,8 +24,8 @@ def read_frames(filename_queue):
 
     result = ImageRecord()
   
-    result.height = IMAGE_ROWS
-    result.width = IMAGE_COLS
+    result.height = IMAGE_HEIGHT
+    result.width = IMAGE_WIDTH
     result.depth = NUM_CHANNELS
     image_bytes = result.height * result.width * result.depth
 
@@ -75,7 +78,7 @@ def _generate_image_batch(image, batch_size, shuffle):
   return images
 
 
-def distorted_inputs(filenames, batch_size):
+def inputs(filenames, batch_size, shuffle=True):
     """
     """
 
@@ -90,10 +93,9 @@ def distorted_inputs(filenames, batch_size):
     read_input = read_frames(filename_queue)
     reshaped_image = tf.cast(read_input.image, tf.float32)
     reshaped_image = reshaped_image / 127.5 - 1.0
-    distorted_image = reshaped_image
 
-    height = IMAGE_ROWS
-    width = IMAGE_COLS
+    height = IMAGE_HEIGHT
+    width = IMAGE_WIDTH
     channels = NUM_CHANNELS
 
     # Image processing for training the network. Note the many random
@@ -108,45 +110,4 @@ def distorted_inputs(filenames, batch_size):
     #distorted_image.set_shape([height, width, channels])
 
     # Generate a batch of images by building up a queue of examples.
-    return _generate_image_batch(distorted_image, batch_size, shuffle=True)
-
-
-def inputs(eval_data, data_dir, batch_size):
-    """
-    """
-    if not eval_data:
-        filename = '/notebooks/shared/videos/youtube/tfrecords/train.tfrecords'
-        num_examples_per_epoch = NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN
-        print(filename)
-    else:
-        filename = '/notebooks/shared/videos/youtube/tfrecords/test.tfrecords'
-        num_examples_per_epoch = NUM_EXAMPLES_PER_EPOCH_FOR_EVAL
-        print(filename)
-  
-    if not tf.gfile.Exists(filename):
-        raise ValueError('Failed to find file: ' + filename)
-  
-    # Create a queue that produces the filenames to read.
-    filename_queue = tf.train.string_input_producer([filename])
-  
-    # Read examples from files in the filename queue.
-    read_input = read_frames(filename_queue)
-    reshaped_image = tf.cast(read_input.uint8image, tf.float32)
-  
-    height = IMAGE_ROWS
-    width = IMAGE_COLS
-    channels = NUM_CHANNELS
-
-    # Subtract off the mean and divide by the variance of the pixels.
-    #float_image = tf.image.per_image_standardization(reshaped_image)
-  
-    # Set the shapes of tensors.
-    reshaped_image.set_shape([height, width, channels])
-  
-    # Ensure that the random shuffling has good mixing properties.
-    min_fraction_of_examples_in_queue = 0.4
-    min_queue_examples = int(num_examples_per_epoch *
-                             min_fraction_of_examples_in_queue)
-  
-    # Generate a batch of images and labels by building up a queue of examples.
-    return _generate_image_batch(reshaped_image, min_queue_examples, batch_size, shuffle=False)
+    return _generate_image_batch(reshaped_image, batch_size, shuffle=shuffle)
