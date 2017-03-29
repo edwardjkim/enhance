@@ -234,7 +234,7 @@ def train():
         summary_writer = tf.summary.FileWriter(FLAGS.train_dir, sess.graph)
   
         best_valid_loss = np.inf
-        early_stoppping_rounds = 0
+        early_stopping_rounds = 0
   
         for step in xrange(FLAGS.max_steps):
             start_time = time.time()
