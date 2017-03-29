@@ -176,17 +176,17 @@ def train():
                     # Calculate the loss for one tower of the model. This
                     # function constructs the entire model but shares the
                     # variables across all towers.
-                    loss = tower_loss(scope)
+                        loss = tower_loss(scope)
   
-                    # Reuse variables for the next tower.
-                    tf.get_variable_scope().reuse_variables()
+                        # Reuse variables for the next tower.
+                        tf.get_variable_scope().reuse_variables()
   
-                    # Calculate the gradients for the batch of data on this
-                    # tower.
-                    grads = opt.compute_gradients(loss)
+                        # Calculate the gradients for the batch of data on this
+                        # tower.
+                        grads = opt.compute_gradients(loss)
   
-                    # Keep track of the gradients across all towers.
-                    tower_grads.append(grads)
+                        # Keep track of the gradients across all towers.
+                        tower_grads.append(grads)
   
         # We must calculate the mean of each gradient. Note that this is the
         # synchronization point across all towers.
@@ -201,13 +201,13 @@ def train():
                     # Calculate the loss for one tower of the model. This
                     # function constructs the entire model but shares the
                     # variables across all towers.
-                    valid_loss = tower_valid_loss(scope)
+                        valid_loss = tower_valid_loss(scope)
   
-                    # Reuse variables for the next tower.
-                    tf.get_variable_scope().reuse_variables()
+                        # Reuse variables for the next tower.
+                        tf.get_variable_scope().reuse_variables()
   
-                    # Keep track of the gradients across all towers.
-                    tower_valid_losses.append(valid_loss)
+                        # Keep track of the gradients across all towers.
+                        tower_valid_losses.append(valid_loss)
   
         total_valid_loss = tf.reduce_mean(tower_valid_losses)
   
@@ -234,6 +234,7 @@ def train():
         summary_writer = tf.summary.FileWriter(FLAGS.train_dir, sess.graph)
   
         best_valid_loss = np.inf
+        early_stoppping_rounds = 0
   
         for step in xrange(FLAGS.max_steps):
             start_time = time.time()
@@ -253,7 +254,7 @@ def train():
                     examples_per_sec, sec_per_batch))
                 sys.stdout.flush()
     
-            if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
+            if (step + 1) % 1000 == 0 or (step + 1) == FLAGS.max_steps:
 
                 checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
                 saver.save(sess, checkpoint_path, global_step=step)
