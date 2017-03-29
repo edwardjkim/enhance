@@ -243,16 +243,10 @@ def generator(input_image):
                 [3 * FLAGS.upscale_factor ** 2],
                 tf.constant_initializer(0.0))
             bias = tf.nn.bias_add(conv_t, biases)
-            # prelu
-            alphas = _variable_on_cpu(
-                'alpha',
-                [3 * FLAGS.upscale_factor ** 2],
-                tf.constant_initializer(0.2))
-            deconv3 = tf.nn.relu(bias) + alphas * (bias - abs(bias)) * 0.5
 
         with tf.variable_scope('ps'):
             output = periodic_shuffle(
-                deconv3, FLAGS.upscale_factor, color=True)
+                bias, FLAGS.upscale_factor, color=True)
       
     return tf.nn.tanh(output)
 
