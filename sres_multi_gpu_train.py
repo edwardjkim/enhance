@@ -278,9 +278,9 @@ def train():
                         FLAGS.train_dir, 'best_model.ckpt')
                     saver.save(sess, checkpoint_path, global_step=step)
 
-                elif early_stopping_rounds > FLAGS.early_stopping_rounds:
-                    print("Valition loss didn't improve for {}... "
-                        "Stopping early.".format(FLAGS.early_stopping_rounds))
+                elif early_stopping_rounds > 5:
+                    print("Valition loss didn't improve for 5 rounds... "
+                        "Stopping early.")
                     sys.stdout.flush()
                     break
 

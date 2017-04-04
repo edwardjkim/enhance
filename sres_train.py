@@ -93,6 +93,7 @@ def train():
         tf.train.start_queue_runners(sess=sess)
     
         best_valid_loss = np.inf
+        early_stopping_rounds = 0
     
         for step in xrange(FLAGS.max_steps):
             start_time = time.time()
@@ -136,12 +137,12 @@ def train():
                         FLAGS.train_dir, 'best_model.ckpt')
                     saver.save(sess, checkpoint_path, global_step=step)
 
-                elif early_stopping_rounds > FLAGS.early_stopping_rounds:
+                elif early_stopping_rounds > 5:
                     checkpoint_path = os.path.join(
                         FLAGS.train_dir, 'model.ckpt')
                     saver.save(sess, checkpoint_path, global_step=step)
-                    print("Valition loss didn't improve for {}... "
-                        "Stopping early.".format(FLAGS.early_stopping_rounds))
+                    print("Valition loss didn't improve for 5 rounds... "
+                        "Stopping early.".format())
                     sys.stdout.flush()
                     break
 
