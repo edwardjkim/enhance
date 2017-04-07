@@ -37,6 +37,8 @@ python sres_multi_gpu_train.py \
   --third_filter_size=3
 ```
 
+![](images/num_gpus.png)
+
 For more information, see TensorFlow tutorial on
 [Training a Model Using Multiple GPU Cards](https://www.tensorflow.org/tutorials/deep_cnn#training_a_model_using_multiple_gpu_cards).
 
@@ -45,6 +47,7 @@ If your GPU cluster is using SLURM, you can use this
 for training and also for distributed
 [hyperparamter optimization](https://github.com/EdwardJKim/enhance/blob/master/hypop.sh).
 
+![](images/hyperopt.png)
 
 ## Deploying
 
