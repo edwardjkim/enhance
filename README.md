@@ -61,3 +61,5 @@ Javascript, and Tensorflow.
 [Real-Time Video Super-Resolution with Spatio-Temporal Networks and Motion Compensation](https://arxiv.org/abs/1611.05250)
 
 [https://github.com/Tetrachrome/subpixel](https://github.com/Tetrachrome/subpixel)
+
+[TensorFlow's CIFAR-10 Tutorial](https://www.tensorflow.org/tutorials/deep_cnn)
