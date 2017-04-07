@@ -1,3 +1,8 @@
+"""
+Modified from
+https://github.com/tensorflow/models/blob/master/inception/inception/data/build_imagenet_data.py
+"""
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function

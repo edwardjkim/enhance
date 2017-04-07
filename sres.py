@@ -1,3 +1,9 @@
+"""
+Modified from
+https://github.com/tensorflow/models/blob/master/tutorials/image/cifar10/cifar10.py
+
+"""
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
